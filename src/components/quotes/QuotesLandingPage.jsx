@@ -1,0 +1,369 @@
+import React, { useMemo, useState } from "react";
+import { Card, Button, Select } from "../ui";
+import {
+  formatDateForInput,
+  formatMoney,
+  formatQuoteReferenceNumber,
+  getScheduleEndDate,
+  toDateInputValue
+} from "../../utils/appUtils";
+
+const hasStartDate = (quote) => Boolean(String(quote.startDate || "").trim());
+const getTodayDate = () => formatDateForInput(new Date());
+const getQuoteStartDate = (quote) => toDateInputValue(quote.startDate);
+
+const getLatestScheduleEndDate = (quote) =>
+  (quote.schedule || []).reduce((latestEndDate, task) => {
+    const taskEndDate =
+      toDateInputValue(task.endDate) ||
+      getScheduleEndDate(task.startDate, task.duration);
+
+    if (!taskEndDate) return latestEndDate;
+    if (!latestEndDate || taskEndDate > latestEndDate) return taskEndDate;
+
+    return latestEndDate;
+  }, "");
+
+const isOngoingSchedulePastDue = (quote) => {
+  const latestScheduleEndDate = getLatestScheduleEndDate(quote);
+  return Boolean(latestScheduleEndDate && latestScheduleEndDate < getTodayDate());
+};
+
+const hasProjectStarted = (quote) => {
+  const startDate = getQuoteStartDate(quote);
+  return Boolean(startDate && startDate <= getTodayDate());
+};
+
+const getQuoteWorkflowState = (quote) => {
+  if (quote.status === "invoiced") return "invoiced";
+  if (quote.status === "completed") return "completed";
+  if (quote.status === "ongoing" && isOngoingSchedulePastDue(quote)) return "completed";
+  if ((quote.status === "approved" || quote.status === "ongoing") && isOngoingSchedulePastDue(quote)) return "completed";
+  if ((quote.status === "approved" || quote.status === "ongoing") && hasProjectStarted(quote)) return "ongoing";
+  if ((quote.status === "approved" || quote.status === "ongoing") && hasStartDate(quote)) return "waiting";
+  if (quote.status === "ongoing") return "ongoing";
+  if (quote.status === "approved") return "approved";
+  return "open";
+};
+
+const getStatusLabel = (status) => {
+  if (status === "invoiced") return "Invoiced";
+  if (status === "completed") return "Completed";
+  if (status === "ongoing") return "Ongoing";
+  if (status === "waiting") return "Waiting To Start";
+  if (status === "approved") return "Approved";
+  return "Open";
+};
+
+const PROJECT_LIST_OPTIONS = [
+  {
+    value: "all",
+    label: "All Quotes",
+    title: "All Active Quotes",
+    emptyText: "No active quotes yet."
+  },
+  {
+    value: "approved",
+    label: "Approved",
+    title: "Approved Projects",
+    emptyText: "No approved projects without a start date yet."
+  },
+  {
+    value: "waiting",
+    label: "Waiting To Start",
+    title: "Waiting To Start",
+    emptyText: "No future approved projects waiting to start yet."
+  },
+  {
+    value: "ongoing",
+    label: "Ongoing Projects",
+    title: "Ongoing Projects",
+    emptyText: "No ongoing projects yet."
+  }
+];
+
+export default function QuotesLandingPage({
+  dark,
+  savedQuotes,
+  onNewQuote,
+  onOpenQuote,
+  onToggleQuoteApproval,
+  onToggleQuoteInvoiced,
+  onIncrementQuoteInvoicePart,
+  onSetQuoteProjectStatus
+}) {
+  const [selectedProjectList, setSelectedProjectList] = useState("approved");
+
+  const quotesInProgress = savedQuotes.filter((quote) => getQuoteWorkflowState(quote) === "open");
+  const approvedProjects = savedQuotes.filter((quote) => getQuoteWorkflowState(quote) === "approved");
+  const waitingProjects = savedQuotes.filter((quote) => getQuoteWorkflowState(quote) === "waiting");
+  const ongoingProjects = savedQuotes.filter((quote) => getQuoteWorkflowState(quote) === "ongoing");
+  const completedProjects = savedQuotes.filter((quote) => {
+    const status = getQuoteWorkflowState(quote);
+    return status === "completed" || status === "invoiced";
+  });
+  const activeQuotes = savedQuotes.filter((quote) => {
+    const status = getQuoteWorkflowState(quote);
+    return status !== "completed" && status !== "invoiced";
+  });
+  const quoteTotal = savedQuotes.reduce((sum, quote) => sum + Number(quote.totals?.total || 0), 0);
+  const quoteAverage = savedQuotes.length ? quoteTotal / savedQuotes.length : 0;
+
+  const projectLists = useMemo(
+    () => ({
+      all: activeQuotes,
+      approved: approvedProjects,
+      waiting: waitingProjects,
+      ongoing: ongoingProjects
+    }),
+    [activeQuotes, approvedProjects, waitingProjects, ongoingProjects]
+  );
+  const selectedListConfig =
+    PROJECT_LIST_OPTIONS.find((option) => option.value === selectedProjectList) ||
+    PROJECT_LIST_OPTIONS[0];
+  const selectedProjectQuotes = projectLists[selectedListConfig.value] || [];
+
+  const renderProjectActions = (quote, status) => {
+    if (status === "waiting") {
+      return (
+        <>
+          <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
+            Open Quote
+          </Button>
+          <Button variant="secondary" onClick={() => onToggleQuoteApproval(quote.id)}>
+            Mark In Progress
+          </Button>
+        </>
+      );
+    }
+
+    if (status === "ongoing") {
+      return (
+        <>
+          <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
+            Open Quote
+          </Button>
+          <Button variant="secondary" onClick={() => onSetQuoteProjectStatus?.(quote.id, "completed")}>
+            Mark Completed
+          </Button>
+          <Button variant="secondary" onClick={() => onSetQuoteProjectStatus?.(quote.id, "approved")}>
+            Move To Waiting
+          </Button>
+        </>
+      );
+    }
+
+    if (status === "completed" || status === "invoiced") {
+      const isAutoCompletedProject = status === "completed" && quote.status !== "completed";
+
+      return (
+        <>
+          <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
+            Open Quote
+          </Button>
+          {isAutoCompletedProject ? (
+            <Button variant="secondary" onClick={() => onSetQuoteProjectStatus?.(quote.id, "completed")}>
+              Mark Completed
+            </Button>
+          ) : null}
+          {status === "invoiced" ? (
+            <Button variant="secondary" onClick={() => onIncrementQuoteInvoicePart(quote.id)}>
+              Add Payment Part
+            </Button>
+          ) : (
+            <Button variant="secondary" onClick={() => onToggleQuoteInvoiced(quote.id)}>
+              Mark Invoiced
+            </Button>
+          )}
+          {!isAutoCompletedProject ? (
+            <Button variant="secondary" onClick={() => onSetQuoteProjectStatus?.(quote.id, "ongoing")}>
+              Mark Ongoing
+            </Button>
+          ) : null}
+        </>
+      );
+    }
+
+    return (
+      <>
+        <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
+          Open Quote
+        </Button>
+        <Button variant="secondary" onClick={() => onToggleQuoteApproval(quote.id)}>
+          Mark In Progress
+        </Button>
+      </>
+    );
+  };
+
+  const renderProjectRow = (quote) => {
+    const status = getQuoteWorkflowState(quote);
+
+    return (
+      <div key={quote.id} className="list-row quote-overview-row">
+        <div className="quote-overview-main">
+          <div className="quote-overview-heading">
+            <div className="row-title">{quote.projectTitle}</div>
+            <span className={`status-pill ${status}`}>{getStatusLabel(status)}</span>
+          </div>
+          <div className="row-subtitle">
+            {formatQuoteReferenceNumber(quote)} • {quote.clientName || "No client name"} • {quote.startDate ? `Start Date: ${quote.startDate}` : "No start date"}
+          </div>
+        </div>
+
+        <div className="quote-overview-side">
+          <div className="quote-overview-total">
+            {formatMoney(quote.totals?.total || 0)}
+          </div>
+          <div className="button-row quote-overview-actions">
+            {renderProjectActions(quote, status)}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <Card dark={dark}>
+        <div className="section-header">
+          <div>
+            <h3>Quotes Overview</h3>
+            <p className="row-subtitle">
+              Review quote activity, monitor totals, and jump into a new quote when you are ready.
+            </p>
+          </div>
+          <Button onClick={onNewQuote}>+ New Quote</Button>
+        </div>
+      </Card>
+
+      <div className="stats-grid">
+        <Card dark={dark}>
+          <div className="stat-label">Quotes In Progress</div>
+          <div className="stat-value">{quotesInProgress.length}</div>
+        </Card>
+
+        <Card dark={dark}>
+          <div className="stat-label">Waiting To Start</div>
+          <div className="stat-value">{waitingProjects.length}</div>
+        </Card>
+
+        <Card dark={dark}>
+          <div className="stat-label">Quote Total</div>
+          <div className="stat-value">{formatMoney(quoteTotal)}</div>
+        </Card>
+
+        <Card dark={dark}>
+          <div className="stat-label">Quote Average</div>
+          <div className="stat-value">{formatMoney(quoteAverage)}</div>
+        </Card>
+      </div>
+
+      <Card dark={dark}>
+        <div className="section-header">
+          <div>
+            <h3>Quotes In Progress</h3>
+            <p className="row-subtitle">
+              Review saved quotes that are still being worked on, then continue editing or mark them approved.
+            </p>
+          </div>
+        </div>
+
+        {quotesInProgress.length === 0 ? (
+          <div className="quotes-empty-state">
+            <p>No quotes in progress yet.</p>
+            <Button onClick={onNewQuote}>New Quote</Button>
+          </div>
+        ) : (
+          <div className="list-table">
+            {quotesInProgress.map((quote) => (
+              <div key={quote.id} className="list-row quote-overview-row">
+                <div className="quote-overview-main">
+                  <div className="quote-overview-heading">
+                    <div className="row-title">{quote.projectTitle}</div>
+                    <span className="status-pill open">Open</span>
+                  </div>
+                  <div className="row-subtitle">
+                    {formatQuoteReferenceNumber(quote)} • {quote.clientName || "No client name"} • {quote.quoteDate || "No quote date"}
+                  </div>
+                </div>
+
+                <div className="quote-overview-side">
+                  <div className="quote-overview-total">
+                    {formatMoney(quote.totals?.total || 0)}
+                  </div>
+                  <div className="button-row quote-overview-actions">
+                    <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
+                      Continue Quote
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => onToggleQuoteApproval(quote.id)}
+                    >
+                      Mark Approved
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card dark={dark}>
+        <div className="section-header">
+          <div>
+            <h3>{selectedListConfig.title}</h3>
+            <p className="row-subtitle">
+              Select a project stage to review the matching project list.
+            </p>
+          </div>
+          <label className="project-list-filter">
+            View
+            <Select
+              value={selectedProjectList}
+              onChange={(event) => setSelectedProjectList(event.target.value)}
+            >
+              {PROJECT_LIST_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </div>
+
+        {selectedProjectQuotes.length === 0 ? (
+          <div className="quotes-empty-state">
+            <p>{selectedListConfig.emptyText}</p>
+          </div>
+        ) : (
+          <div className="list-table">
+            {selectedProjectQuotes.map(renderProjectRow)}
+          </div>
+        )}
+      </Card>
+
+      <Card dark={dark}>
+        <div className="section-header">
+          <div>
+            <h3>Completed Jobs</h3>
+            <p className="row-subtitle">
+              Review completed and invoiced jobs that were created from saved quotes.
+            </p>
+          </div>
+        </div>
+
+        {completedProjects.length === 0 ? (
+          <div className="quotes-empty-state">
+            <p>No completed jobs yet.</p>
+          </div>
+        ) : (
+          <div className="list-table">
+            {completedProjects.map(renderProjectRow)}
+          </div>
+        )}
+      </Card>
+    </>
+  );
+}
