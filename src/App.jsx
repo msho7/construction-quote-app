@@ -30,6 +30,7 @@ import {
 } from "./utils/appUtils";
 import { exportQuoteToExcel, exportQuoteToPdf } from "./utils/exportUtils";
 import { Card, Button, Input, Select } from "./components/ui";
+import AnalysisPage from "./components/analysis/AnalysisPage";
 import QuotesLandingPage from "./components/quotes/QuotesLandingPage";
 import SchedulePage from "./components/schedule/SchedulePage";
 
@@ -187,15 +188,6 @@ const getCustomerDisplayName = (profile = EMPTY_CUSTOMER_PROFILE) =>
   String(profile?.companyName || "").trim() ||
   "Customer";
 const getSavedQuoteStatus = (quote = {}) => quote.status || "open";
-const getSavedQuoteStatusLabel = (quote = {}) => {
-  const status = getSavedQuoteStatus(quote);
-
-  if (status === "invoiced") return "Invoiced";
-  if (status === "completed") return "Completed";
-  if (status === "ongoing") return "Ongoing";
-  if (status === "approved") return "Approved";
-  return "Open";
-};
 const isQuoteApprovedOrLater = (quote = {}) =>
   ["approved", "ongoing", "completed", "invoiced"].includes(getSavedQuoteStatus(quote));
 const getProfileAddressDisplay = (profile = {}) => {
@@ -600,6 +592,7 @@ export default function ConstructionQuoteApp() {
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [isEditingCustomer, setIsEditingCustomer] = useState(() => !hasCustomerProfileData(getInitialCustomerProfile()));
   const [showCustomerNotes, setShowCustomerNotes] = useState(() => Boolean(getInitialCustomerProfile().notes?.trim()));
+  const [customerJobViews, setCustomerJobViews] = useState({});
   const [selectedQuoteCustomerId, setSelectedQuoteCustomerId] = useState("");
   const [quoteCustomerProfile, setQuoteCustomerProfile] = useState(() => normalizeCustomerRecord());
   const [clientName, setClientName] = useState("");
@@ -846,7 +839,7 @@ export default function ConstructionQuoteApp() {
   useEffect(() => {
     if (
       selectedScheduleQuoteId !== null &&
-      !savedQuotes.some((quote) => quote.id === selectedScheduleQuoteId && quote.status === "approved")
+      !savedQuotes.some((quote) => quote.id === selectedScheduleQuoteId && ["approved", "ongoing"].includes(quote.status))
     ) {
       setSelectedScheduleQuoteId(null);
     }
@@ -1066,6 +1059,13 @@ export default function ConstructionQuoteApp() {
     setCustomerDraft(selectedCustomer);
     setShowCustomerNotes(Boolean(selectedCustomer.notes?.trim()));
     setIsEditingCustomer(false);
+  };
+
+  const toggleCustomerJobView = (customerId) => {
+    setCustomerJobViews((previous) => ({
+      ...previous,
+      [customerId]: previous[customerId] === "previous" ? "ongoing" : "previous"
+    }));
   };
 
   const startNewCustomer = () => {
@@ -2051,10 +2051,20 @@ export default function ConstructionQuoteApp() {
         invoicePartNumber: activeQuoteRecord.invoicePartNumber || 1
       })
     : "";
-  const approvedScheduleQuotes = savedQuotes.filter((quote) => quote.status === "approved");
+  const approvedScheduleQuotes = savedQuotes.filter((quote) => ["approved", "ongoing"].includes(quote.status));
   const selectedApprovedScheduleQuote = approvedScheduleQuotes.find(
     (quote) => quote.id === selectedScheduleQuoteId
   ) || null;
+
+  const renderAnalysis = () => (
+    <AnalysisPage
+      dark={dark}
+      savedQuotes={savedQuotes}
+      onOpenQuotes={openQuotesLanding}
+      onOpenSchedule={openScheduleLanding}
+      onOpenContractors={() => setCurrentPage("contractor")}
+    />
+  );
 
   const renderDashboard = () => (
     <>
@@ -2084,6 +2094,7 @@ export default function ConstructionQuoteApp() {
           <div className="button-stack">
             <Button onClick={openQuoteBuilder}>Open Quote Builder</Button>
             <Button variant="secondary" onClick={openQuotesLanding}>Quotes Overview</Button>
+            <Button variant="secondary" onClick={() => setCurrentPage("analysis")}>View Analysis</Button>
             <Button variant="secondary" onClick={openScheduleLanding}>View Schedules</Button>
             <Button variant="secondary" onClick={() => setCurrentPage("pricelist")}>Manage Price List</Button>
             <Button variant="secondary" onClick={() => setCurrentPage("contractor")}>Manage Contractors</Button>
@@ -2492,6 +2503,7 @@ export default function ConstructionQuoteApp() {
       onReorderQuoteScheduleTasks={(quote, fromIndex, toIndex, scheduleSnapshot) =>
         reorderSavedQuoteScheduleTasks(quote.id, fromIndex, toIndex, scheduleSnapshot)}
       onOpenQuoteSchedule={(quote) => openApprovedQuoteSchedule(quote.id)}
+      onSetQuoteProjectStatus={setQuoteProjectStatus}
       onBackToLanding={openScheduleLanding}
     />
   );
@@ -3080,61 +3092,29 @@ export default function ConstructionQuoteApp() {
         hasCustomerProfileData(quote.customerProfile) ||
         String(quote.clientName || "").trim()
       );
-    const unapprovedCustomerQuotes = customerQuoteRecords.filter(({ quote }) => !isQuoteApprovedOrLater(quote));
-    const approvedCustomerQuotes = customerQuoteRecords.filter(({ quote }) => isQuoteApprovedOrLater(quote));
-    const shouldShowCustomerQuoteTables = !selectedCustomerId && !isEditingCustomer;
-    const renderCustomerQuoteRow = ({ quote, customer }) => {
-      const status = getSavedQuoteStatus(quote);
-      const customerName =
-        customer
-          ? getCustomerDisplayName(customer)
-          : quote.clientName || (hasCustomerProfileData(quote.customerProfile) ? getCustomerDisplayName(quote.customerProfile) : "");
+    const getCustomerQuoteBuckets = (customerId) => {
+      const matchedRecords = customerQuoteRecords.filter(({ customer }) => customer?.id === customerId);
 
-      return (
-        <div key={quote.id} className="list-row quote-overview-row">
-          <div className="quote-overview-main">
-            <div className="quote-overview-heading">
-              <button
-                type="button"
-                className="quote-title-button"
-                onClick={() => loadQuote(quote)}
-              >
-                {quote.projectTitle || "Untitled Quote"}
-              </button>
-              <span className={`status-pill ${status}`}>{getSavedQuoteStatusLabel(quote)}</span>
-            </div>
-            <div className="row-subtitle customer-job-subtitle">
-              <span>{formatQuoteReferenceNumber(quote)}</span>
-              <span>•</span>
-              {customer ? (
-                <button
-                  type="button"
-                  className="inline-link-button"
-                  onClick={() => selectCustomer(customer)}
-                >
-                  {customerName}
-                </button>
-              ) : (
-                <span>{customerName || "No client name"}</span>
-              )}
-              <span>•</span>
-              <span>{quote.quoteDate || "No quote date"}</span>
-            </div>
-          </div>
-
-          <div className="quote-overview-side">
-            <div className="quote-overview-total">
-              {formatMoney(quote.totals?.total || 0)}
-            </div>
-            <div className="button-row quote-overview-actions">
-              <Button variant="secondary" onClick={() => loadQuote(quote)}>
-                Open Quote
-              </Button>
-            </div>
-          </div>
-        </div>
-      );
+      return {
+        open: matchedRecords.filter(({ quote }) => !isQuoteApprovedOrLater(quote)),
+        ongoing: matchedRecords.filter(({ quote }) => ["approved", "ongoing"].includes(getSavedQuoteStatus(quote))),
+        previous: matchedRecords.filter(({ quote }) => ["completed", "invoiced"].includes(getSavedQuoteStatus(quote)))
+      };
     };
+    const renderCompactCustomerQuoteRow = ({ quote }) => (
+      <button
+        key={quote.id}
+        type="button"
+        className="customer-card-job-row"
+        onClick={() => loadQuote(quote)}
+      >
+        <span>
+          <strong>{quote.projectTitle || "Untitled Quote"}</strong>
+          <span>{formatQuoteReferenceNumber(quote)} • {quote.quoteDate || "No quote date"}</span>
+        </span>
+        <span>{formatMoney(quote.totals?.total || 0)}</span>
+      </button>
+    );
     const customerEditor = isEditingCustomer ? (
       <Card dark={dark}>
           <div className="section-header">
@@ -3276,117 +3256,133 @@ export default function ConstructionQuoteApp() {
             </div>
           ) : (
             <div className="list-table">
-              {savedCustomers.map((customer) => (
-                <div
-                  key={customer.id}
-                  className={[
-                    "list-row",
-                    "customer-directory-row",
-                    selectedCustomerId === customer.id && !isEditingCustomer ? "active" : ""
-                  ].filter(Boolean).join(" ")}
-                >
-                  <div className="customer-directory-summary">
-                    <button
-                      type="button"
-                      className="customer-directory-trigger"
-                      onClick={() => selectCustomer(customer)}
-                    >
-                      <div className="row-title">{customer.customerName || "Unnamed Customer"}</div>
-                      <div className="row-subtitle">
-                        {customer.companyName || "No company name"} • {customer.email || customer.phone || "No contact info"}
-                      </div>
-                    </button>
-                    <div className="button-row">
-                      <Button
-                        variant="secondary"
-                        onClick={() => startEditingCustomer(customer)}
+              {savedCustomers.map((customer) => {
+                const customerQuoteBuckets = getCustomerQuoteBuckets(customer.id);
+                const activeJobView = customerJobViews[customer.id] || "ongoing";
+                const activeJobQuotes = customerQuoteBuckets[activeJobView];
+                const activeJobLabel = activeJobView === "previous" ? "Previous Jobs" : "Ongoing Jobs";
+
+                return (
+                  <div
+                    key={customer.id}
+                    className={[
+                      "list-row",
+                      "customer-directory-row",
+                      selectedCustomerId === customer.id && !isEditingCustomer ? "active" : ""
+                    ].filter(Boolean).join(" ")}
+                  >
+                    <div className="customer-directory-summary">
+                      <button
+                        type="button"
+                        className="customer-directory-trigger"
+                        onClick={() => selectCustomer(customer)}
                       >
-                        Edit
-                      </Button>
-                    </div>
-                  </div>
-
-                  {selectedCustomerId === customer.id && !isEditingCustomer ? (
-                    <div className="customer-directory-expanded">
-                      <div className="details-list">
-                        <div><strong>Name:</strong> {customer.customerName || "Not set"}</div>
-                        <div><strong>Company:</strong> {customer.companyName || "Not set"}</div>
-                        <div><strong>Phone:</strong> {customer.phone || "Not set"}</div>
-                        <div><strong>Email:</strong> {customer.email || "Not set"}</div>
-                        <div><strong>Address:</strong> {customer.address || "Not set"}</div>
-                        <div><strong>Unit Number:</strong> {customer.unitNumber || "Not set"}</div>
-                        <div><strong>City:</strong> {customer.city || "Not set"}</div>
-                        <div><strong>Province:</strong> {customer.province || "Not set"}</div>
-                        <div><strong>Post Code:</strong> {customer.postalCode || "Not set"}</div>
-                      </div>
-
-                      <div className="button-row customer-action-row">
-                        <Button variant="secondary" onClick={() => setShowCustomerNotes((previous) => !previous)}>
-                          {showCustomerNotes ? "Hide Notes" : "Notes"}
-                        </Button>
-                        <Button variant="secondary" onClick={() => startEditingCustomer(customer)}>
-                          Edit {getCustomerDisplayName(customer)}
-                        </Button>
-                      </div>
-
-                      {showCustomerNotes ? (
-                        <div className="customer-notes-display">
-                          <h4>Customer Notes</h4>
-                          <p>{customer.notes?.trim() || "No notes saved yet."}</p>
+                        <div className="row-title">{customer.customerName || "Unnamed Customer"}</div>
+                        <div className="row-subtitle">
+                          {customer.companyName || "No company name"} • {customer.email || customer.phone || "No contact info"}
                         </div>
-                      ) : null}
+                      </button>
+                      <div className="button-row">
+                        <Button
+                          variant="secondary"
+                          onClick={() => startEditingCustomer(customer)}
+                        >
+                          Edit
+                        </Button>
+                      </div>
+                      <div className="customer-card-work-summary">
+                        <div className="customer-card-work-item">
+                          <span>Open Quotes</span>
+                          <strong>{customerQuoteBuckets.open.length}</strong>
+                        </div>
+                        <button
+                          type="button"
+                          className="customer-card-work-item customer-card-work-toggle"
+                          onClick={() => toggleCustomerJobView(customer.id)}
+                        >
+                          <span>{activeJobLabel}</span>
+                          <strong>{activeJobQuotes.length}</strong>
+                        </button>
+                      </div>
                     </div>
-                  ) : null}
-                </div>
-              ))}
+
+                    {selectedCustomerId === customer.id && !isEditingCustomer ? (
+                      <div className="customer-directory-expanded">
+                        <div className="details-list">
+                          <div><strong>Name:</strong> {customer.customerName || "Not set"}</div>
+                          <div><strong>Company:</strong> {customer.companyName || "Not set"}</div>
+                          <div><strong>Phone:</strong> {customer.phone || "Not set"}</div>
+                          <div><strong>Email:</strong> {customer.email || "Not set"}</div>
+                          <div><strong>Address:</strong> {customer.address || "Not set"}</div>
+                          <div><strong>Unit Number:</strong> {customer.unitNumber || "Not set"}</div>
+                          <div><strong>City:</strong> {customer.city || "Not set"}</div>
+                          <div><strong>Province:</strong> {customer.province || "Not set"}</div>
+                          <div><strong>Post Code:</strong> {customer.postalCode || "Not set"}</div>
+                        </div>
+
+                        <div className="button-row customer-action-row">
+                          <Button variant="secondary" onClick={() => setShowCustomerNotes((previous) => !previous)}>
+                            {showCustomerNotes ? "Hide Notes" : "Notes"}
+                          </Button>
+                          <Button variant="secondary" onClick={() => startEditingCustomer(customer)}>
+                            Edit {getCustomerDisplayName(customer)}
+                          </Button>
+                        </div>
+
+                        {showCustomerNotes ? (
+                          <div className="customer-notes-display">
+                            <h4>Customer Notes</h4>
+                            <p>{customer.notes?.trim() || "No notes saved yet."}</p>
+                          </div>
+                        ) : null}
+
+                        <div className="customer-card-job-sections">
+                          <section>
+                            <div className="section-header">
+                              <div>
+                                <h4>Open Quotes</h4>
+                                <p className="row-subtitle">Quotes still waiting for approval.</p>
+                              </div>
+                            </div>
+                            {customerQuoteBuckets.open.length ? (
+                              <div className="customer-card-job-list">
+                                {customerQuoteBuckets.open.map(renderCompactCustomerQuoteRow)}
+                              </div>
+                            ) : (
+                              <p className="row-subtitle">No open quotes for this customer.</p>
+                            )}
+                          </section>
+
+                          <section>
+                            <div className="section-header">
+                              <div>
+                                <h4>{activeJobLabel}</h4>
+                                <p className="row-subtitle">
+                                  {activeJobView === "previous"
+                                    ? "Completed and invoiced work for this customer."
+                                    : "Approved and active work for this customer."}
+                                </p>
+                              </div>
+                              <Button variant="secondary" onClick={() => toggleCustomerJobView(customer.id)}>
+                                {activeJobView === "previous" ? "Show Ongoing Jobs" : "Show Previous Jobs"}
+                              </Button>
+                            </div>
+                            {activeJobQuotes.length ? (
+                              <div className="customer-card-job-list">
+                                {activeJobQuotes.map(renderCompactCustomerQuoteRow)}
+                              </div>
+                            ) : (
+                              <p className="row-subtitle">No {activeJobLabel.toLowerCase()} for this customer.</p>
+                            )}
+                          </section>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           )}
-
-          {shouldShowCustomerQuoteTables ? (
-            <div className="customer-job-tables">
-              <section className="customer-job-table-section">
-                <div className="section-header">
-                  <div>
-                    <h3>Customer Quotes Not Approved</h3>
-                    <p className="row-subtitle">
-                      Quotes tied to saved customers that are still open or waiting to be approved.
-                    </p>
-                  </div>
-                </div>
-
-                {unapprovedCustomerQuotes.length === 0 ? (
-                  <div className="quotes-empty-state">
-                    <p>No unapproved customer quotes yet.</p>
-                  </div>
-                ) : (
-                  <div className="list-table">
-                    {unapprovedCustomerQuotes.map(renderCustomerQuoteRow)}
-                  </div>
-                )}
-              </section>
-
-              <section className="customer-job-table-section">
-                <div className="section-header">
-                  <div>
-                    <h3>Approved And Completed Customer Jobs</h3>
-                    <p className="row-subtitle">
-                      Approved, ongoing, completed, and invoiced jobs connected to your saved customers.
-                    </p>
-                  </div>
-                </div>
-
-                {approvedCustomerQuotes.length === 0 ? (
-                  <div className="quotes-empty-state">
-                    <p>No approved or completed customer jobs yet.</p>
-                  </div>
-                ) : (
-                  <div className="list-table">
-                    {approvedCustomerQuotes.map(renderCustomerQuoteRow)}
-                  </div>
-                )}
-              </section>
-            </div>
-          ) : null}
         </Card>
 
       </>
@@ -3561,6 +3557,7 @@ export default function ConstructionQuoteApp() {
             </div>
 
             {currentPage === "dashboard" && renderDashboard()}
+            {currentPage === "analysis" && renderAnalysis()}
             {currentPage === "contractor" && renderContractor()}
             {currentPage === "customer" && renderCustomer()}
             {currentPage === "quotes" && quotesView === "landing" && (

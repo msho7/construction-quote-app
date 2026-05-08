@@ -1,5 +1,5 @@
 export type ThemeMode = "light" | "dark" | "system";
-export type PageId = "dashboard" | "quotes" | "schedule" | "pricelist" | "settings";
+export type PageId = "dashboard" | "analysis" | "quotes" | "schedule" | "pricelist" | "contractor" | "customer" | "settings";
 
 export interface QuoteItem {
   itemId?: string;
@@ -61,6 +61,7 @@ export interface PriceListItem {
 export interface ScheduleItem extends QuoteItem {
   startDate: string;
   endDate: string;
+  completed?: boolean;
 }
 
 export interface QuoteTotals {

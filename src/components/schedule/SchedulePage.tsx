@@ -34,6 +34,7 @@ type SchedulePageProps = {
   onReorderDraftScheduleTasks?: (fromIndex: number, toIndex: number, scheduleSnapshot: ScheduleItem[]) => void;
   onReorderQuoteScheduleTasks?: (quote: SavedQuote, fromIndex: number, toIndex: number, scheduleSnapshot: ScheduleItem[]) => void;
   onOpenQuoteSchedule?: (quote: SavedQuote) => void;
+  onSetQuoteProjectStatus?: (quoteId: number, status: "open" | "approved" | "ongoing" | "completed" | "invoiced") => void;
   onBackToLanding?: () => void;
 };
 
@@ -87,6 +88,36 @@ const getDateDifferenceInDays = (startDate: string, endDate: string) => {
   return Math.abs(difference);
 };
 
+const getLatestScheduleEndDate = (quote: SavedQuote) =>
+  (quote.schedule || []).reduce((latestDate, task) => {
+    const endDate = toDateInputValue(task.endDate);
+    if (!endDate) return latestDate;
+    return !latestDate || endDate > latestDate ? endDate : latestDate;
+  }, "");
+
+const getProjectHasStarted = (quote: SavedQuote) => {
+  const startDate = toDateInputValue(quote.startDate) || toDateInputValue(quote.schedule?.[0]?.startDate);
+  const today = toDateInputValue(new Date().toISOString().slice(0, 10));
+
+  return Boolean(startDate && today && startDate <= today);
+};
+
+const getScheduleStatus = (quote: SavedQuote) => {
+  const today = toDateInputValue(new Date().toISOString().slice(0, 10));
+  const startDate = toDateInputValue(quote.startDate) || toDateInputValue(quote.schedule?.[0]?.startDate);
+  const latestEndDate = getLatestScheduleEndDate(quote);
+
+  if (!startDate || (today && startDate > today)) {
+    return { className: "waiting", label: "Waiting To Start" };
+  }
+
+  if (today && latestEndDate && latestEndDate < today) {
+    return { className: "delayed", label: "Delayed" };
+  }
+
+  return { className: "on-time", label: "On Time" };
+};
+
 export default function SchedulePage({
   dark,
   schedule = [],
@@ -109,6 +140,7 @@ export default function SchedulePage({
   onReorderDraftScheduleTasks,
   onReorderQuoteScheduleTasks,
   onOpenQuoteSchedule,
+  onSetQuoteProjectStatus,
   onBackToLanding
 }: SchedulePageProps) {
   const [pendingTaskEdits, setPendingTaskEdits] = useState<Record<number, PendingTaskEdit>>({});
@@ -405,6 +437,11 @@ export default function SchedulePage({
     setIsEditingScheduleStartDate(false);
   };
 
+  const selectedQuoteScheduleStatus = selectedQuoteSchedule ? getScheduleStatus(selectedQuoteSchedule) : null;
+  const selectedQuoteHasStarted = Boolean(selectedQuoteSchedule && getProjectHasStarted(selectedQuoteSchedule));
+  const canShowSelectedCompleteAction =
+    Boolean(selectedQuoteSchedule) && !["completed", "invoiced"].includes(selectedQuoteSchedule?.status || "");
+
   if (selectedQuoteSchedule || shouldShowDraftDetail) {
     return (
       <>
@@ -436,6 +473,14 @@ export default function SchedulePage({
           {detailQuoteDate || currentScheduleStartDate || detailProjectAddress || scheduleItems.length ? (
             <div className="details-list">
               <div><strong>Quote Date:</strong> {detailQuoteDate || "Not set"}</div>
+              {selectedQuoteScheduleStatus ? (
+                <div>
+                  <strong>Schedule Status:</strong>{" "}
+                  <span className={`status-pill ${selectedQuoteScheduleStatus.className}`}>
+                    {selectedQuoteScheduleStatus.label}
+                  </span>
+                </div>
+              ) : null}
               <div className="schedule-detail-row">
                 <div><strong>Start Date:</strong> {currentScheduleStartDate || "Not set"}</div>
                 {scheduleItems.length ? (
@@ -492,6 +537,15 @@ export default function SchedulePage({
                 {getScheduleCountLabel(scheduleItems)} • Drag a task title up or down to reorder the schedule.
               </div>
             </div>
+            {!shouldShowDraftDetail && selectedQuoteSchedule && canShowSelectedCompleteAction ? (
+              <Button
+                disabled={!selectedQuoteHasStarted}
+                title={selectedQuoteHasStarted ? "Mark this project completed" : "Project has not started yet"}
+                onClick={() => onSetQuoteProjectStatus?.(selectedQuoteSchedule.id, "completed")}
+              >
+                Mark Completed
+              </Button>
+            ) : null}
           </div>
 
           {scheduleItems.length === 0 ? (
@@ -669,54 +723,57 @@ export default function SchedulePage({
       <Card dark={dark}>
         <div className="section-header">
           <div>
-            <h3>Approved Quote Schedules</h3>
+            <h3>Active Quote Schedules</h3>
             <p className="row-subtitle">
-              Each approved quote below shows its planned start date and can be opened to review the schedule details.
+              Each active quote below shows its planned start date, schedule status, and completion action once the project has started.
             </p>
           </div>
         </div>
 
         {approvedQuotes.length === 0 ? (
           <div className="quotes-empty-state">
-            <p>No approved quotes with schedules yet.</p>
+            <p>No active quote schedules yet.</p>
           </div>
         ) : (
           <div className="list-table">
-            {approvedQuotes.map((quote) => (
-              <div key={quote.id} className="list-row quote-overview-row">
-                <div className="quote-overview-main">
-                  <div className="quote-overview-heading">
-                    <div className="row-title">{quote.projectTitle}</div>
-                    <span className="status-pill approved">Approved</span>
+            {approvedQuotes.map((quote) => {
+              const scheduleStatus = getScheduleStatus(quote);
+              return (
+                <div key={quote.id} className="list-row quote-overview-row">
+                  <div className="quote-overview-main">
+                    <div className="quote-overview-heading">
+                      <div className="row-title">{quote.projectTitle}</div>
+                      <span className={`status-pill ${scheduleStatus.className}`}>{scheduleStatus.label}</span>
+                    </div>
+                    <div className="row-subtitle">
+                      {formatQuoteReferenceNumber(quote)} • {quote.clientName || "No client name"} • {quote.startDate ? `Start Date: ${quote.startDate}` : "No start date"}
+                    </div>
                   </div>
-                  <div className="row-subtitle">
-                    {formatQuoteReferenceNumber(quote)} • {quote.clientName || "No client name"} • {quote.startDate ? `Start Date: ${quote.startDate}` : "No start date"}
-                  </div>
-                </div>
 
-                <div className="quote-overview-side">
-                  <div className="quote-overview-total">
-                    {quote.schedule?.length ? getScheduleCountLabel(quote.schedule) : "No schedule yet"}
-                  </div>
-                  <div className="button-row quote-overview-actions">
-                    {onGenerateQuoteSchedule ? (
+                  <div className="quote-overview-side">
+                    <div className="quote-overview-total">
+                      {quote.schedule?.length ? getScheduleCountLabel(quote.schedule) : "No schedule yet"}
+                    </div>
+                    <div className="button-row quote-overview-actions">
+                      {onGenerateQuoteSchedule ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() => onGenerateQuoteSchedule(quote)}
+                        >
+                          Generate Schedule
+                        </Button>
+                      ) : null}
                       <Button
                         variant="secondary"
-                        onClick={() => onGenerateQuoteSchedule(quote)}
+                        onClick={() => onOpenQuoteSchedule?.(quote)}
                       >
-                        Generate Schedule
+                        View Schedule
                       </Button>
-                    ) : null}
-                    <Button
-                      variant="secondary"
-                      onClick={() => onOpenQuoteSchedule?.(quote)}
-                    >
-                      View Schedule
-                    </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>

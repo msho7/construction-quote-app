@@ -8,6 +8,7 @@ export const UNIT_OPTIONS = [
 
 export const PAGE_OPTIONS = [
   { id: "dashboard", label: "Dashboard" },
+  { id: "analysis", label: "Analysis" },
   { id: "quotes", label: "Quotes" },
   { id: "schedule", label: "Schedule" },
   { id: "pricelist", label: "Price List" },
