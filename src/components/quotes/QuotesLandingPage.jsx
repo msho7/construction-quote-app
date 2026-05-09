@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { Card, Button, Select } from "../ui";
+import React, { useEffect, useMemo, useState } from "react";
+import { Card, Button, Input, Select } from "../ui";
 import {
   formatDateForInput,
   formatMoney,
@@ -11,6 +11,20 @@ import {
 const hasStartDate = (quote) => Boolean(String(quote.startDate || "").trim());
 const getTodayDate = () => formatDateForInput(new Date());
 const getQuoteStartDate = (quote) => toDateInputValue(quote.startDate);
+const getNormalizedText = (value) => String(value || "").trim().toLowerCase();
+const getQuoteCustomerName = (quote) =>
+  String(quote.customerProfile?.customerName || "").trim() ||
+  String(quote.customerProfile?.companyName || "").trim() ||
+  String(quote.clientName || "").trim();
+const getQuoteCustomerSearchText = (quote) =>
+  [
+    getQuoteCustomerName(quote),
+    quote.clientName,
+    quote.customerProfile?.customerName,
+    quote.customerProfile?.companyName,
+    quote.customerProfile?.email,
+    quote.customerProfile?.phone
+  ].map(getNormalizedText).filter(Boolean).join(" ");
 
 const getLatestScheduleEndDate = (quote) =>
   (quote.schedule || []).reduce((latestEndDate, task) => {
@@ -79,12 +93,21 @@ const PROJECT_LIST_OPTIONS = [
     label: "Ongoing Projects",
     title: "Ongoing Projects",
     emptyText: "No ongoing projects yet."
+  },
+  {
+    value: "completed",
+    label: "Completed Jobs",
+    title: "Completed Jobs",
+    emptyText: "No completed jobs yet."
   }
 ];
 
 export default function QuotesLandingPage({
   dark,
   savedQuotes,
+  customerFilter,
+  initialProjectList,
+  onClearCustomerFilter,
   onNewQuote,
   onOpenQuote,
   onToggleQuoteApproval,
@@ -93,30 +116,60 @@ export default function QuotesLandingPage({
   onSetQuoteProjectStatus
 }) {
   const [selectedProjectList, setSelectedProjectList] = useState("approved");
+  const [customerSearchTerm, setCustomerSearchTerm] = useState("");
+  const customerScopedQuotes = customerFilter
+    ? savedQuotes.filter((quote) => {
+        if (customerFilter.id && (quote.customerId === customerFilter.id || quote.customerProfile?.id === customerFilter.id)) {
+          return true;
+        }
 
-  const quotesInProgress = savedQuotes.filter((quote) => getQuoteWorkflowState(quote) === "open");
-  const approvedProjects = savedQuotes.filter((quote) => getQuoteWorkflowState(quote) === "approved");
-  const waitingProjects = savedQuotes.filter((quote) => getQuoteWorkflowState(quote) === "waiting");
-  const ongoingProjects = savedQuotes.filter((quote) => getQuoteWorkflowState(quote) === "ongoing");
-  const completedProjects = savedQuotes.filter((quote) => {
+        const filterName = getNormalizedText(customerFilter.customerName || customerFilter.companyName || customerFilter.label);
+        const quoteName = getNormalizedText(getQuoteCustomerName(quote));
+        const filterEmail = getNormalizedText(customerFilter.email);
+        const quoteEmail = getNormalizedText(quote.customerProfile?.email);
+
+        return Boolean(
+          (filterName && quoteName && filterName === quoteName) ||
+          (filterEmail && quoteEmail && filterEmail === quoteEmail)
+        );
+      })
+    : savedQuotes;
+  const normalizedCustomerSearchTerm = getNormalizedText(customerSearchTerm);
+  const filteredQuotes = normalizedCustomerSearchTerm
+    ? customerScopedQuotes.filter((quote) =>
+        getQuoteCustomerSearchText(quote).includes(normalizedCustomerSearchTerm)
+      )
+    : customerScopedQuotes;
+
+  const quotesInProgress = filteredQuotes.filter((quote) => getQuoteWorkflowState(quote) === "open");
+  const approvedProjects = filteredQuotes.filter((quote) => getQuoteWorkflowState(quote) === "approved");
+  const waitingProjects = filteredQuotes.filter((quote) => getQuoteWorkflowState(quote) === "waiting");
+  const ongoingProjects = filteredQuotes.filter((quote) => getQuoteWorkflowState(quote) === "ongoing");
+  const completedProjects = filteredQuotes.filter((quote) => {
     const status = getQuoteWorkflowState(quote);
     return status === "completed" || status === "invoiced";
   });
-  const activeQuotes = savedQuotes.filter((quote) => {
+  const activeQuotes = filteredQuotes.filter((quote) => {
     const status = getQuoteWorkflowState(quote);
     return status !== "completed" && status !== "invoiced";
   });
-  const quoteTotal = savedQuotes.reduce((sum, quote) => sum + Number(quote.totals?.total || 0), 0);
-  const quoteAverage = savedQuotes.length ? quoteTotal / savedQuotes.length : 0;
+  const quoteTotal = filteredQuotes.reduce((sum, quote) => sum + Number(quote.totals?.total || 0), 0);
+  const quoteAverage = filteredQuotes.length ? quoteTotal / filteredQuotes.length : 0;
+
+  useEffect(() => {
+    if (!initialProjectList) return;
+    setSelectedProjectList(initialProjectList);
+  }, [initialProjectList]);
 
   const projectLists = useMemo(
     () => ({
       all: activeQuotes,
       approved: approvedProjects,
       waiting: waitingProjects,
-      ongoing: ongoingProjects
+      ongoing: ongoingProjects,
+      completed: completedProjects
     }),
-    [activeQuotes, approvedProjects, waitingProjects, ongoingProjects]
+    [activeQuotes, approvedProjects, waitingProjects, ongoingProjects, completedProjects]
   );
   const selectedListConfig =
     PROJECT_LIST_OPTIONS.find((option) => option.value === selectedProjectList) ||
@@ -230,11 +283,29 @@ export default function QuotesLandingPage({
           <div>
             <h3>Quotes Overview</h3>
             <p className="row-subtitle">
-              Review quote activity, monitor totals, and jump into a new quote when you are ready.
+              {customerFilter?.label
+                ? `Showing quotes for ${customerFilter.label}.`
+                : "Review quote activity, monitor totals, and jump into a new quote when you are ready."}
             </p>
           </div>
-          <Button onClick={onNewQuote}>+ New Quote</Button>
+          <div className="button-row">
+            {customerFilter?.id ? (
+              <Button variant="secondary" onClick={onClearCustomerFilter}>
+                Show All Quotes
+              </Button>
+            ) : null}
+            <Button onClick={onNewQuote}>+ New Quote</Button>
+          </div>
         </div>
+
+        <label className="quotes-customer-search">
+          Search Customer
+          <Input
+            placeholder="Search by customer name, company, email, or phone"
+            value={customerSearchTerm}
+            onChange={(event) => setCustomerSearchTerm(event.target.value)}
+          />
+        </label>
       </Card>
 
       <div className="stats-grid">
@@ -271,7 +342,7 @@ export default function QuotesLandingPage({
 
         {quotesInProgress.length === 0 ? (
           <div className="quotes-empty-state">
-            <p>No quotes in progress yet.</p>
+            <p>{normalizedCustomerSearchTerm ? "No in-progress quotes match that customer search." : "No quotes in progress yet."}</p>
             <Button onClick={onNewQuote}>New Quote</Button>
           </div>
         ) : (
@@ -335,7 +406,7 @@ export default function QuotesLandingPage({
 
         {selectedProjectQuotes.length === 0 ? (
           <div className="quotes-empty-state">
-            <p>{selectedListConfig.emptyText}</p>
+            <p>{normalizedCustomerSearchTerm ? "No projects match that customer search." : selectedListConfig.emptyText}</p>
           </div>
         ) : (
           <div className="list-table">
@@ -356,7 +427,7 @@ export default function QuotesLandingPage({
 
         {completedProjects.length === 0 ? (
           <div className="quotes-empty-state">
-            <p>No completed jobs yet.</p>
+            <p>{normalizedCustomerSearchTerm ? "No completed jobs match that customer search." : "No completed jobs yet."}</p>
           </div>
         ) : (
           <div className="list-table">

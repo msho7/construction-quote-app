@@ -313,6 +313,45 @@ export const APP_STYLES = `
     border-color: #2563eb;
     background: rgba(37, 99, 235, 0.08);
   }
+  .customer-job-slider {
+    min-height: 64px;
+    padding: 4px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .customer-job-slider-option {
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px;
+    text-align: left;
+  }
+  .customer-job-slider-option span {
+    color: #6b7280;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+  .customer-job-slider-option strong {
+    font-size: 1.1rem;
+  }
+  .customer-job-slider-option.ongoing:hover,
+  .customer-job-slider-option.ongoing.active {
+    background: rgba(34, 197, 94, 0.18);
+  }
+  .customer-job-slider-option.previous:hover,
+  .customer-job-slider-option.previous.active {
+    background: rgba(245, 158, 11, 0.2);
+  }
   .customer-card-job-sections {
     margin-top: 18px;
     display: grid;
@@ -360,7 +399,12 @@ export const APP_STYLES = `
     border-color: #374151;
     background: #0f172a;
   }
+  .app-shell.dark .customer-job-slider {
+    border-color: #374151;
+    background: #0f172a;
+  }
   .app-shell.dark .customer-card-work-item span,
+  .app-shell.dark .customer-job-slider-option span,
   .app-shell.dark .customer-card-job-row > span:first-child span {
     color: #9ca3af;
   }
@@ -625,6 +669,10 @@ export const APP_STYLES = `
     background: #dcfce7;
     color: #166534;
   }
+  .status-pill.early {
+    background: #dbeafe;
+    color: #1d4ed8;
+  }
   .status-pill.delayed {
     background: #fee2e2;
     color: #b91c1c;
@@ -664,6 +712,10 @@ export const APP_STYLES = `
   .app-shell.dark .status-pill.on-time {
     background: rgba(34, 197, 94, 0.2);
     color: #86efac;
+  }
+  .app-shell.dark .status-pill.early {
+    background: rgba(37, 99, 235, 0.2);
+    color: #93c5fd;
   }
   .app-shell.dark .status-pill.delayed {
     background: rgba(239, 68, 68, 0.2);
@@ -777,6 +829,18 @@ export const APP_STYLES = `
     color: #6b7280;
   }
   .app-shell.dark .project-list-filter {
+    color: #9ca3af;
+  }
+  .quotes-customer-search {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #6b7280;
+  }
+  .app-shell.dark .quotes-customer-search {
     color: #9ca3af;
   }
   .quote-reference-line {

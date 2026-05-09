@@ -31,6 +31,7 @@ import {
 import { exportQuoteToExcel, exportQuoteToPdf } from "./utils/exportUtils";
 import { Card, Button, Input, Select } from "./components/ui";
 import AnalysisPage from "./components/analysis/AnalysisPage";
+import CustomerPage from "./components/customer/CustomerPage";
 import QuotesLandingPage from "./components/quotes/QuotesLandingPage";
 import SchedulePage from "./components/schedule/SchedulePage";
 
@@ -187,9 +188,6 @@ const getCustomerDisplayName = (profile = EMPTY_CUSTOMER_PROFILE) =>
   String(profile?.customerName || "").trim() ||
   String(profile?.companyName || "").trim() ||
   "Customer";
-const getSavedQuoteStatus = (quote = {}) => quote.status || "open";
-const isQuoteApprovedOrLater = (quote = {}) =>
-  ["approved", "ongoing", "completed", "invoiced"].includes(getSavedQuoteStatus(quote));
 const getProfileAddressDisplay = (profile = {}) => {
   const unitNumber = String(profile?.unitNumber || "").trim();
   const streetAddress = String(profile?.address || "").trim();
@@ -330,6 +328,45 @@ const normalizeScheduleItems = (scheduleItems = []) =>
     };
   });
 
+const getScheduleTaskCompletionStatus = (task = {}, completedAt = getTodayDate()) => {
+  const completedDate = toDateInputValue(completedAt);
+  const scheduledEndDate = toDateInputValue(task.endDate);
+
+  if (completedDate && scheduledEndDate && completedDate < scheduledEndDate) return "early";
+  if (completedDate && scheduledEndDate && completedDate > scheduledEndDate) return "delayed";
+  return "on-time";
+};
+
+const markScheduleTaskCompletedInCollection = (scheduleItems = [], taskIndex) =>
+  normalizeScheduleItems(
+    scheduleItems.map((task, index) => {
+      if (index !== taskIndex) return task;
+
+      const completedAt = getTodayDate();
+
+      return {
+        ...task,
+        completed: true,
+        completedAt,
+        completionStatus: getScheduleTaskCompletionStatus(task, completedAt)
+      };
+    })
+  );
+
+const markScheduleTaskInProgressInCollection = (scheduleItems = [], taskIndex) =>
+  normalizeScheduleItems(
+    scheduleItems.map((task, index) =>
+      index !== taskIndex
+        ? task
+        : {
+            ...task,
+            completed: false,
+            completedAt: "",
+            completionStatus: ""
+          }
+    )
+  );
+
 const resequenceScheduleItems = (scheduleItems = [], scheduleStartDate = "") => {
   const normalizedSchedule = normalizeScheduleItems(scheduleItems);
   const normalizedStartDate = getNextBusinessDate(scheduleStartDate) || normalizedSchedule[0]?.startDate || "";
@@ -401,7 +438,10 @@ const syncQuoteItemsToSchedule = (quoteItems = [], scheduleItems = []) => {
         unit: task.unit || matchingItem.unit,
         category: task.category || matchingItem.category,
         pricePerUnit: Number(task.pricePerUnit ?? matchingItem.pricePerUnit ?? 0),
-        markupRate: Number(task.markupRate ?? matchingItem.markupRate ?? DEFAULT_ITEM_MARKUP_RATE)
+        markupRate: Number(task.markupRate ?? matchingItem.markupRate ?? DEFAULT_ITEM_MARKUP_RATE),
+        completed: Boolean(task.completed),
+        completedAt: task.completedAt || "",
+        completionStatus: task.completionStatus || ""
       };
     })
     .filter(Boolean);
@@ -637,6 +677,8 @@ export default function ConstructionQuoteApp() {
   const [quotesView, setQuotesView] = useState("landing");
   const [selectedScheduleQuoteId, setSelectedScheduleQuoteId] = useState(null);
   const [showDraftSchedulePreview, setShowDraftSchedulePreview] = useState(false);
+  const [quotesCustomerFilter, setQuotesCustomerFilter] = useState(null);
+  const [quotesInitialProjectList, setQuotesInitialProjectList] = useState("");
 
   const updateScheduleTaskCollection = (scheduleItems, taskIndex, field, value) => {
     const normalizedDuration = Math.max(1, Number(sanitizeNumericInput(value, { allowDecimal: false }) || 1));
@@ -1492,9 +1534,24 @@ export default function ConstructionQuoteApp() {
     }
   };
 
-  const openQuotesLanding = () => {
+  const openQuotesLanding = (options = {}) => {
+    setQuotesCustomerFilter(options.customerFilter || null);
+    setQuotesInitialProjectList(options.projectList || "");
     setQuotesView("landing");
     setCurrentPage("quotes");
+  };
+
+  const openCustomerQuotesLanding = (customer, projectList = "") => {
+    openQuotesLanding({
+      projectList,
+      customerFilter: {
+        id: customer.id || "",
+        label: getCustomerDisplayName(customer),
+        email: customer.email || "",
+        customerName: customer.customerName || "",
+        companyName: customer.companyName || ""
+      }
+    });
   };
 
   const openQuoteBuilder = () => {
@@ -1590,6 +1647,40 @@ export default function ConstructionQuoteApp() {
           schedule: nextSchedule
         };
       })
+    );
+  };
+
+  const markDraftScheduleTaskCompleted = (taskIndex) => {
+    setSchedule((previous) => markScheduleTaskCompletedInCollection(previous, taskIndex));
+  };
+
+  const markSavedQuoteScheduleTaskCompleted = (quoteId, taskIndex) => {
+    setSavedQuotes((previous) =>
+      previous.map((quote) =>
+        quote.id !== quoteId
+          ? quote
+          : {
+              ...quote,
+              schedule: markScheduleTaskCompletedInCollection(quote.schedule || [], taskIndex)
+            }
+      )
+    );
+  };
+
+  const markDraftScheduleTaskInProgress = (taskIndex) => {
+    setSchedule((previous) => markScheduleTaskInProgressInCollection(previous, taskIndex));
+  };
+
+  const markSavedQuoteScheduleTaskInProgress = (quoteId, taskIndex) => {
+    setSavedQuotes((previous) =>
+      previous.map((quote) =>
+        quote.id !== quoteId
+          ? quote
+          : {
+              ...quote,
+              schedule: markScheduleTaskInProgressInCollection(quote.schedule || [], taskIndex)
+            }
+      )
     );
   };
 
@@ -2496,6 +2587,10 @@ export default function ConstructionQuoteApp() {
       onGenerateQuoteSchedule={(quote) => generateScheduleForSavedQuote(quote.id)}
       onUpdateDraftScheduleTask={updateDraftScheduleTask}
       onUpdateQuoteScheduleTask={(quote, taskIndex, field, value) => updateSavedQuoteScheduleTask(quote.id, taskIndex, field, value)}
+      onMarkDraftTaskCompleted={markDraftScheduleTaskCompleted}
+      onMarkQuoteTaskCompleted={(quote, taskIndex) => markSavedQuoteScheduleTaskCompleted(quote.id, taskIndex)}
+      onMarkDraftTaskInProgress={markDraftScheduleTaskInProgress}
+      onMarkQuoteTaskInProgress={(quote, taskIndex) => markSavedQuoteScheduleTaskInProgress(quote.id, taskIndex)}
       onUpdateDraftScheduleStartDate={updateDraftScheduleStartDate}
       onUpdateQuoteScheduleStartDate={(quote, value, scheduleSnapshot) =>
         updateSavedQuoteScheduleStartDate(quote.id, value, scheduleSnapshot)}
@@ -2503,7 +2598,6 @@ export default function ConstructionQuoteApp() {
       onReorderQuoteScheduleTasks={(quote, fromIndex, toIndex, scheduleSnapshot) =>
         reorderSavedQuoteScheduleTasks(quote.id, fromIndex, toIndex, scheduleSnapshot)}
       onOpenQuoteSchedule={(quote) => openApprovedQuoteSchedule(quote.id)}
-      onSetQuoteProjectStatus={setQuoteProjectStatus}
       onBackToLanding={openScheduleLanding}
     />
   );
@@ -3065,329 +3159,29 @@ export default function ConstructionQuoteApp() {
     );
   };
 
-  const renderCustomer = () => {
-    const getQuoteMatchedCustomer = (quote) =>
-      savedCustomers.find((customer) => {
-        if (quote.customerId && customer.id === quote.customerId) return true;
-        if (quote.customerProfile?.id && customer.id === quote.customerProfile.id) return true;
-
-        const customerName = getNormalizedText(getCustomerDisplayName(customer));
-        const quoteClientName = getNormalizedText(quote.clientName);
-        const quoteProfileName = hasCustomerProfileData(quote.customerProfile)
-          ? getNormalizedText(getCustomerDisplayName(quote.customerProfile))
-          : "";
-        const customerEmail = getNormalizedText(customer.email);
-        const quoteEmail = getNormalizedText(quote.customerProfile?.email);
-
-        if (customerName && (quoteClientName === customerName || quoteProfileName === customerName)) return true;
-        return Boolean(customerEmail && quoteEmail && customerEmail === quoteEmail);
-      });
-    const customerQuoteRecords = savedQuotes
-      .map((quote) => ({
-        quote,
-        customer: getQuoteMatchedCustomer(quote)
-      }))
-      .filter(({ quote, customer }) =>
-        customer ||
-        hasCustomerProfileData(quote.customerProfile) ||
-        String(quote.clientName || "").trim()
-      );
-    const getCustomerQuoteBuckets = (customerId) => {
-      const matchedRecords = customerQuoteRecords.filter(({ customer }) => customer?.id === customerId);
-
-      return {
-        open: matchedRecords.filter(({ quote }) => !isQuoteApprovedOrLater(quote)),
-        ongoing: matchedRecords.filter(({ quote }) => ["approved", "ongoing"].includes(getSavedQuoteStatus(quote))),
-        previous: matchedRecords.filter(({ quote }) => ["completed", "invoiced"].includes(getSavedQuoteStatus(quote)))
-      };
-    };
-    const renderCompactCustomerQuoteRow = ({ quote }) => (
-      <button
-        key={quote.id}
-        type="button"
-        className="customer-card-job-row"
-        onClick={() => loadQuote(quote)}
-      >
-        <span>
-          <strong>{quote.projectTitle || "Untitled Quote"}</strong>
-          <span>{formatQuoteReferenceNumber(quote)} • {quote.quoteDate || "No quote date"}</span>
-        </span>
-        <span>{formatMoney(quote.totals?.total || 0)}</span>
-      </button>
-    );
-    const customerEditor = isEditingCustomer ? (
-      <Card dark={dark}>
-          <div className="section-header">
-            <div>
-              <h3>{customerDraft.id ? `Edit ${getCustomerDisplayName(customerDraft)}` : "New Customer"}</h3>
-              <p className="row-subtitle">
-                Update the customer details, then save the record to keep it in your customer directory.
-              </p>
-            </div>
-            <div className="button-row">
-              <Button variant="secondary" onClick={() => setShowCustomerNotes((previous) => !previous)}>
-                {showCustomerNotes ? "Hide Notes" : "Notes"}
-              </Button>
-            </div>
-          </div>
-
-          <>
-            <div className="grid three-col">
-              <label>
-                Customer Name
-                <Input
-                  placeholder="Customer Name"
-                  value={customerDraft.customerName}
-                  onChange={(e) => updateCustomerProfile("customerName", e.target.value)}
-                />
-              </label>
-              <label>
-                Company Name
-                <Input
-                  placeholder="Company Name"
-                  value={customerDraft.companyName}
-                  onChange={(e) => updateCustomerProfile("companyName", e.target.value)}
-                />
-              </label>
-              <label>
-                Phone
-                <Input
-                  placeholder="Phone"
-                  value={customerDraft.phone}
-                  onChange={(e) => updateCustomerProfile("phone", e.target.value)}
-                />
-              </label>
-              <label>
-                Email
-                <Input
-                  placeholder="Email"
-                  value={customerDraft.email}
-                  onChange={(e) => updateCustomerProfile("email", e.target.value)}
-                />
-              </label>
-              <div className="grid span-two customer-address-row">
-                <label>
-                  Address
-                  <Input
-                    placeholder="Customer Address"
-                    value={customerDraft.address}
-                    onChange={(e) => updateCustomerProfile("address", e.target.value)}
-                  />
-                </label>
-                <label>
-                  Unit Number
-                  <Input
-                    placeholder="Unit Number"
-                    value={customerDraft.unitNumber}
-                    onChange={(e) => updateCustomerProfile("unitNumber", e.target.value)}
-                  />
-                </label>
-              </div>
-              <label>
-                City
-                <Input
-                  placeholder="City"
-                  value={customerDraft.city}
-                  onChange={(e) => updateCustomerProfile("city", e.target.value)}
-                />
-              </label>
-              <label>
-                Province
-                <Input
-                  placeholder="Province"
-                  value={customerDraft.province}
-                  onChange={(e) => updateCustomerProfile("province", e.target.value)}
-                />
-              </label>
-              <label>
-                Post Code
-                <Input
-                  placeholder="Post Code"
-                  value={customerDraft.postalCode}
-                  onChange={(e) => updateCustomerProfile("postalCode", e.target.value)}
-                />
-              </label>
-            </div>
-
-            {showCustomerNotes ? (
-              <div className="customer-notes-section">
-                <label className="customer-notes-label">
-                  Customer Notes
-                  <textarea
-                    className="input customer-notes-input"
-                    placeholder="Add customer notes"
-                    value={customerDraft.notes}
-                    onChange={(e) => updateCustomerProfile("notes", e.target.value)}
-                  />
-                </label>
-              </div>
-            ) : null}
-
-            <div className="button-row customer-action-row">
-              <Button onClick={saveCustomerProfile}>Save Customer</Button>
-              <Button variant="secondary" onClick={cancelCustomerEditing}>Cancel</Button>
-            </div>
-          </>
-      </Card>
-    ) : null;
-
-    return (
-      <>
-        {customerEditor}
-
-        <Card dark={dark}>
-          <div className="section-header">
-            <div>
-              <h3>Customer CRM</h3>
-              <p className="row-subtitle">
-                Keep a list of saved customers, open any record to review it, and add new customers as your directory grows.
-              </p>
-            </div>
-            <div className="button-row">
-              <Button onClick={startNewCustomer}>New Customer</Button>
-              <Button variant="secondary" onClick={openQuotesLanding}>Go To Quotes</Button>
-            </div>
-          </div>
-
-          {savedCustomers.length === 0 ? (
-            <div className="quotes-empty-state">
-              <p>No saved customers yet.</p>
-              <Button onClick={startNewCustomer}>Add First Customer</Button>
-            </div>
-          ) : (
-            <div className="list-table">
-              {savedCustomers.map((customer) => {
-                const customerQuoteBuckets = getCustomerQuoteBuckets(customer.id);
-                const activeJobView = customerJobViews[customer.id] || "ongoing";
-                const activeJobQuotes = customerQuoteBuckets[activeJobView];
-                const activeJobLabel = activeJobView === "previous" ? "Previous Jobs" : "Ongoing Jobs";
-
-                return (
-                  <div
-                    key={customer.id}
-                    className={[
-                      "list-row",
-                      "customer-directory-row",
-                      selectedCustomerId === customer.id && !isEditingCustomer ? "active" : ""
-                    ].filter(Boolean).join(" ")}
-                  >
-                    <div className="customer-directory-summary">
-                      <button
-                        type="button"
-                        className="customer-directory-trigger"
-                        onClick={() => selectCustomer(customer)}
-                      >
-                        <div className="row-title">{customer.customerName || "Unnamed Customer"}</div>
-                        <div className="row-subtitle">
-                          {customer.companyName || "No company name"} • {customer.email || customer.phone || "No contact info"}
-                        </div>
-                      </button>
-                      <div className="button-row">
-                        <Button
-                          variant="secondary"
-                          onClick={() => startEditingCustomer(customer)}
-                        >
-                          Edit
-                        </Button>
-                      </div>
-                      <div className="customer-card-work-summary">
-                        <div className="customer-card-work-item">
-                          <span>Open Quotes</span>
-                          <strong>{customerQuoteBuckets.open.length}</strong>
-                        </div>
-                        <button
-                          type="button"
-                          className="customer-card-work-item customer-card-work-toggle"
-                          onClick={() => toggleCustomerJobView(customer.id)}
-                        >
-                          <span>{activeJobLabel}</span>
-                          <strong>{activeJobQuotes.length}</strong>
-                        </button>
-                      </div>
-                    </div>
-
-                    {selectedCustomerId === customer.id && !isEditingCustomer ? (
-                      <div className="customer-directory-expanded">
-                        <div className="details-list">
-                          <div><strong>Name:</strong> {customer.customerName || "Not set"}</div>
-                          <div><strong>Company:</strong> {customer.companyName || "Not set"}</div>
-                          <div><strong>Phone:</strong> {customer.phone || "Not set"}</div>
-                          <div><strong>Email:</strong> {customer.email || "Not set"}</div>
-                          <div><strong>Address:</strong> {customer.address || "Not set"}</div>
-                          <div><strong>Unit Number:</strong> {customer.unitNumber || "Not set"}</div>
-                          <div><strong>City:</strong> {customer.city || "Not set"}</div>
-                          <div><strong>Province:</strong> {customer.province || "Not set"}</div>
-                          <div><strong>Post Code:</strong> {customer.postalCode || "Not set"}</div>
-                        </div>
-
-                        <div className="button-row customer-action-row">
-                          <Button variant="secondary" onClick={() => setShowCustomerNotes((previous) => !previous)}>
-                            {showCustomerNotes ? "Hide Notes" : "Notes"}
-                          </Button>
-                          <Button variant="secondary" onClick={() => startEditingCustomer(customer)}>
-                            Edit {getCustomerDisplayName(customer)}
-                          </Button>
-                        </div>
-
-                        {showCustomerNotes ? (
-                          <div className="customer-notes-display">
-                            <h4>Customer Notes</h4>
-                            <p>{customer.notes?.trim() || "No notes saved yet."}</p>
-                          </div>
-                        ) : null}
-
-                        <div className="customer-card-job-sections">
-                          <section>
-                            <div className="section-header">
-                              <div>
-                                <h4>Open Quotes</h4>
-                                <p className="row-subtitle">Quotes still waiting for approval.</p>
-                              </div>
-                            </div>
-                            {customerQuoteBuckets.open.length ? (
-                              <div className="customer-card-job-list">
-                                {customerQuoteBuckets.open.map(renderCompactCustomerQuoteRow)}
-                              </div>
-                            ) : (
-                              <p className="row-subtitle">No open quotes for this customer.</p>
-                            )}
-                          </section>
-
-                          <section>
-                            <div className="section-header">
-                              <div>
-                                <h4>{activeJobLabel}</h4>
-                                <p className="row-subtitle">
-                                  {activeJobView === "previous"
-                                    ? "Completed and invoiced work for this customer."
-                                    : "Approved and active work for this customer."}
-                                </p>
-                              </div>
-                              <Button variant="secondary" onClick={() => toggleCustomerJobView(customer.id)}>
-                                {activeJobView === "previous" ? "Show Ongoing Jobs" : "Show Previous Jobs"}
-                              </Button>
-                            </div>
-                            {activeJobQuotes.length ? (
-                              <div className="customer-card-job-list">
-                                {activeJobQuotes.map(renderCompactCustomerQuoteRow)}
-                              </div>
-                            ) : (
-                              <p className="row-subtitle">No {activeJobLabel.toLowerCase()} for this customer.</p>
-                            )}
-                          </section>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-
-      </>
-    );
-  };
+  const renderCustomer = () => (
+    <CustomerPage
+      dark={dark}
+      savedCustomers={savedCustomers}
+      savedQuotes={savedQuotes}
+      customerDraft={customerDraft}
+      selectedCustomerId={selectedCustomerId}
+      isEditingCustomer={isEditingCustomer}
+      showCustomerNotes={showCustomerNotes}
+      customerJobViews={customerJobViews}
+      onUpdateCustomerProfile={updateCustomerProfile}
+      onSaveCustomer={saveCustomerProfile}
+      onCancelCustomerEditing={cancelCustomerEditing}
+      onSelectCustomer={selectCustomer}
+      onToggleCustomerJobView={toggleCustomerJobView}
+      onStartNewCustomer={startNewCustomer}
+      onStartEditingCustomer={startEditingCustomer}
+      onToggleCustomerNotes={() => setShowCustomerNotes((previous) => !previous)}
+      onOpenQuotes={openQuotesLanding}
+      onOpenCustomerQuotes={openCustomerQuotesLanding}
+      onLoadQuote={loadQuote}
+    />
+  );
 
   const renderSettings = () => (
     <Card dark={dark}>
@@ -3564,6 +3358,12 @@ export default function ConstructionQuoteApp() {
               <QuotesLandingPage
                 dark={dark}
                 savedQuotes={savedQuotes}
+                customerFilter={quotesCustomerFilter}
+                initialProjectList={quotesInitialProjectList}
+                onClearCustomerFilter={() => {
+                  setQuotesCustomerFilter(null);
+                  setQuotesInitialProjectList("");
+                }}
                 onNewQuote={startNewQuote}
                 onOpenQuote={loadQuote}
                 onToggleQuoteApproval={toggleQuoteApproval}

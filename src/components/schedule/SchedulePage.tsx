@@ -29,12 +29,15 @@ type SchedulePageProps = {
   onGenerateQuoteSchedule?: (quote: SavedQuote) => void;
   onUpdateDraftScheduleTask?: (taskIndex: number, field: "startDate" | "duration", value: string) => void;
   onUpdateQuoteScheduleTask?: (quote: SavedQuote, taskIndex: number, field: "startDate" | "duration", value: string) => void;
+  onMarkDraftTaskCompleted?: (taskIndex: number) => void;
+  onMarkQuoteTaskCompleted?: (quote: SavedQuote, taskIndex: number) => void;
+  onMarkDraftTaskInProgress?: (taskIndex: number) => void;
+  onMarkQuoteTaskInProgress?: (quote: SavedQuote, taskIndex: number) => void;
   onUpdateDraftScheduleStartDate?: (value: string, scheduleSnapshot: ScheduleItem[]) => void;
   onUpdateQuoteScheduleStartDate?: (quote: SavedQuote, value: string, scheduleSnapshot: ScheduleItem[]) => void;
   onReorderDraftScheduleTasks?: (fromIndex: number, toIndex: number, scheduleSnapshot: ScheduleItem[]) => void;
   onReorderQuoteScheduleTasks?: (quote: SavedQuote, fromIndex: number, toIndex: number, scheduleSnapshot: ScheduleItem[]) => void;
   onOpenQuoteSchedule?: (quote: SavedQuote) => void;
-  onSetQuoteProjectStatus?: (quoteId: number, status: "open" | "approved" | "ongoing" | "completed" | "invoiced") => void;
   onBackToLanding?: () => void;
 };
 
@@ -118,6 +121,12 @@ const getScheduleStatus = (quote: SavedQuote) => {
   return { className: "on-time", label: "On Time" };
 };
 
+const getTaskCompletionLabel = (status = "") => {
+  if (status === "early") return "Early";
+  if (status === "delayed") return "Delayed";
+  return "On Time";
+};
+
 export default function SchedulePage({
   dark,
   schedule = [],
@@ -135,12 +144,15 @@ export default function SchedulePage({
   onGenerateQuoteSchedule,
   onUpdateDraftScheduleTask,
   onUpdateQuoteScheduleTask,
+  onMarkDraftTaskCompleted,
+  onMarkQuoteTaskCompleted,
+  onMarkDraftTaskInProgress,
+  onMarkQuoteTaskInProgress,
   onUpdateDraftScheduleStartDate,
   onUpdateQuoteScheduleStartDate,
   onReorderDraftScheduleTasks,
   onReorderQuoteScheduleTasks,
   onOpenQuoteSchedule,
-  onSetQuoteProjectStatus,
   onBackToLanding
 }: SchedulePageProps) {
   const [pendingTaskEdits, setPendingTaskEdits] = useState<Record<number, PendingTaskEdit>>({});
@@ -149,7 +161,11 @@ export default function SchedulePage({
   const [dragOverTaskIndex, setDragOverTaskIndex] = useState<number | null>(null);
   const [isEditingScheduleStartDate, setIsEditingScheduleStartDate] = useState(false);
   const [pendingScheduleStartDate, setPendingScheduleStartDate] = useState("");
+
+  const today = toDateInputValue(new Date().toISOString().slice(0, 10));
+
   const activeDraftSchedule = currentDraftSchedule.length ? currentDraftSchedule : schedule;
+
   const shouldShowDraftDetail =
     isViewingDraftSchedule || (!approvedQuotes.length && !selectedQuoteSchedule && activeDraftSchedule.length > 0);
 
@@ -165,16 +181,19 @@ export default function SchedulePage({
     ? currentDraftSubtitle
     : selectedQuoteSchedule?.clientName || "No client name";
 
-  const minimumScheduleStartDate = getNextBusinessDate(
-    shouldShowDraftDetail ? currentDraftStartDate : selectedQuoteSchedule?.startDate
-  );
-  const currentScheduleStartDate = getNextBusinessDate(scheduleItems[0]?.startDate) || minimumScheduleStartDate || "";
+  const minimumScheduleStartDate = getNextBusinessDate(today) || today;
+
+  const currentScheduleStartDate =
+    getNextBusinessDate(scheduleItems[0]?.startDate) || minimumScheduleStartDate || "";
+
   const detailQuoteDate = shouldShowDraftDetail
     ? currentDraftQuoteDate
     : selectedQuoteSchedule?.quoteDate || "";
+
   const detailProjectAddress = shouldShowDraftDetail
     ? currentDraftProjectAddress
     : selectedQuoteSchedule?.projectAddress || "";
+
   const detailQuoteTotal = shouldShowDraftDetail
     ? Number(currentDraftTotal || 0)
     : Number(selectedQuoteSchedule?.totals?.total || 0);
@@ -182,8 +201,10 @@ export default function SchedulePage({
   const clampStartDate = (value: string) => {
     const normalizedValue = getNextBusinessDate(value);
     if (!normalizedValue) return "";
-    if (!minimumScheduleStartDate) return normalizedValue;
-    return normalizedValue < minimumScheduleStartDate ? minimumScheduleStartDate : normalizedValue;
+
+    return normalizedValue < minimumScheduleStartDate
+      ? minimumScheduleStartDate
+      : normalizedValue;
   };
 
   const editableScheduleItems = scheduleItems.map((task, index) => {
@@ -228,9 +249,10 @@ export default function SchedulePage({
       )
     : "";
 
-  const timelineRangeDays = timelineStartDate && timelineEndDate
-    ? Math.max(1, getDateDifferenceInDays(timelineStartDate, timelineEndDate))
-    : 1;
+  const timelineRangeDays =
+    timelineStartDate && timelineEndDate
+      ? Math.max(1, getDateDifferenceInDays(timelineStartDate, timelineEndDate))
+      : 1;
 
   useEffect(() => {
     setPendingTaskEdits({});
@@ -287,6 +309,7 @@ export default function SchedulePage({
     const clearDragState = () => setTimelineInteractionState(null);
     const previousUserSelect = document.body.style.userSelect;
     const previousCursor = document.body.style.cursor;
+
     document.body.style.userSelect = "none";
     document.body.style.cursor = timelineInteractionState.mode === "resize" ? "ew-resize" : "grabbing";
 
@@ -306,9 +329,11 @@ export default function SchedulePage({
   const updatePendingTaskEdit = (taskIndex: number, field: "startDate" | "duration", value: string) => {
     setPendingTaskEdits((previous) => {
       const existingRow = previous[taskIndex] || {};
-      const nextValue = field === "duration"
-        ? sanitizeNumericInput(value, { allowDecimal: false })
-        : clampStartDate(value);
+
+      const nextValue =
+        field === "duration"
+          ? sanitizeNumericInput(value, { allowDecimal: false })
+          : clampStartDate(value);
 
       return {
         ...previous,
@@ -401,6 +426,7 @@ export default function SchedulePage({
     const originalDuration = String(Number(task.duration || 1));
     const nextStartDate = clampStartDate(pendingEdit.startDate ?? originalStartDate);
     const nextDuration = pendingEdit.duration ?? originalDuration;
+
     const hasStartDateChange = nextStartDate !== originalStartDate;
     const hasDurationChange = nextDuration !== originalDuration;
 
@@ -408,6 +434,7 @@ export default function SchedulePage({
       if (hasStartDateChange) {
         onUpdateDraftScheduleTask?.(taskIndex, "startDate", nextStartDate);
       }
+
       if (hasDurationChange) {
         onUpdateDraftScheduleTask?.(taskIndex, "duration", nextDuration);
       }
@@ -415,6 +442,7 @@ export default function SchedulePage({
       if (hasStartDateChange) {
         onUpdateQuoteScheduleTask?.(selectedQuoteSchedule, taskIndex, "startDate", nextStartDate);
       }
+
       if (hasDurationChange) {
         onUpdateQuoteScheduleTask?.(selectedQuoteSchedule, taskIndex, "duration", nextDuration);
       }
@@ -423,8 +451,30 @@ export default function SchedulePage({
     clearPendingTaskEdit(taskIndex);
   };
 
+  const markTaskCompleted = (taskIndex: number) => {
+    if (shouldShowDraftDetail) {
+      onMarkDraftTaskCompleted?.(taskIndex);
+      return;
+    }
+
+    if (selectedQuoteSchedule) {
+      onMarkQuoteTaskCompleted?.(selectedQuoteSchedule, taskIndex);
+    }
+  };
+
+  const markTaskInProgress = (taskIndex: number) => {
+    if (shouldShowDraftDetail) {
+      onMarkDraftTaskInProgress?.(taskIndex);
+      return;
+    }
+
+    if (selectedQuoteSchedule) {
+      onMarkQuoteTaskInProgress?.(selectedQuoteSchedule, taskIndex);
+    }
+  };
+
   const applyScheduleStartDateUpdate = () => {
-    const nextStartDate = getNextBusinessDate(pendingScheduleStartDate);
+    const nextStartDate = clampStartDate(pendingScheduleStartDate);
     if (!nextStartDate || !editableScheduleItems.length) return;
 
     if (shouldShowDraftDetail) {
@@ -438,9 +488,6 @@ export default function SchedulePage({
   };
 
   const selectedQuoteScheduleStatus = selectedQuoteSchedule ? getScheduleStatus(selectedQuoteSchedule) : null;
-  const selectedQuoteHasStarted = Boolean(selectedQuoteSchedule && getProjectHasStarted(selectedQuoteSchedule));
-  const canShowSelectedCompleteAction =
-    Boolean(selectedQuoteSchedule) && !["completed", "invoiced"].includes(selectedQuoteSchedule?.status || "");
 
   if (selectedQuoteSchedule || shouldShowDraftDetail) {
     return (
@@ -451,17 +498,20 @@ export default function SchedulePage({
               <h3>{detailTitle}</h3>
               <p className="row-subtitle">{detailSubtitle}</p>
             </div>
+
             <div className="button-row">
               {shouldShowDraftDetail && onGenerateDraftSchedule ? (
                 <Button variant="secondary" onClick={onGenerateDraftSchedule}>
                   Regenerate Schedule
                 </Button>
               ) : null}
+
               {!shouldShowDraftDetail && selectedQuoteSchedule && onGenerateQuoteSchedule ? (
                 <Button variant="secondary" onClick={() => onGenerateQuoteSchedule(selectedQuoteSchedule)}>
                   Generate Schedule
                 </Button>
               ) : null}
+
               {onBackToLanding ? (
                 <Button variant="secondary" onClick={onBackToLanding}>
                   Back To Approved Quotes
@@ -472,7 +522,10 @@ export default function SchedulePage({
 
           {detailQuoteDate || currentScheduleStartDate || detailProjectAddress || scheduleItems.length ? (
             <div className="details-list">
-              <div><strong>Quote Date:</strong> {detailQuoteDate || "Not set"}</div>
+              <div>
+                <strong>Quote Date:</strong> {detailQuoteDate || "Not set"}
+              </div>
+
               {selectedQuoteScheduleStatus ? (
                 <div>
                   <strong>Schedule Status:</strong>{" "}
@@ -481,8 +534,12 @@ export default function SchedulePage({
                   </span>
                 </div>
               ) : null}
+
               <div className="schedule-detail-row">
-                <div><strong>Start Date:</strong> {currentScheduleStartDate || "Not set"}</div>
+                <div>
+                  <strong>Start Date:</strong> {currentScheduleStartDate || "Not set"}
+                </div>
+
                 {scheduleItems.length ? (
                   <Button
                     variant="secondary"
@@ -495,6 +552,7 @@ export default function SchedulePage({
                   </Button>
                 ) : null}
               </div>
+
               {isEditingScheduleStartDate ? (
                 <div className="schedule-start-date-editor">
                   <label className="schedule-field">
@@ -502,15 +560,17 @@ export default function SchedulePage({
                     <BusinessDatePicker
                       dark={dark}
                       value={pendingScheduleStartDate}
-                      min={minimumScheduleStartDate || undefined}
+                      min={minimumScheduleStartDate}
                       autoOpenOnMount
                       onChange={setPendingScheduleStartDate}
                     />
                   </label>
+
                   <div className="button-row schedule-start-date-actions">
                     <Button variant="secondary" onClick={applyScheduleStartDateUpdate}>
                       Update Start Date
                     </Button>
+
                     <Button
                       variant="secondary"
                       onClick={() => {
@@ -523,8 +583,14 @@ export default function SchedulePage({
                   </div>
                 </div>
               ) : null}
-              <div><strong>Project Address:</strong> {detailProjectAddress || "Not set"}</div>
-              <div><strong>Quote Total:</strong> {formatMoney(detailQuoteTotal)}</div>
+
+              <div>
+                <strong>Project Address:</strong> {detailProjectAddress || "Not set"}
+              </div>
+
+              <div>
+                <strong>Quote Total:</strong> {formatMoney(detailQuoteTotal)}
+              </div>
             </div>
           ) : null}
         </Card>
@@ -537,15 +603,7 @@ export default function SchedulePage({
                 {getScheduleCountLabel(scheduleItems)} • Drag a task title up or down to reorder the schedule.
               </div>
             </div>
-            {!shouldShowDraftDetail && selectedQuoteSchedule && canShowSelectedCompleteAction ? (
-              <Button
-                disabled={!selectedQuoteHasStarted}
-                title={selectedQuoteHasStarted ? "Mark this project completed" : "Project has not started yet"}
-                onClick={() => onSetQuoteProjectStatus?.(selectedQuoteSchedule.id, "completed")}
-              >
-                Mark Completed
-              </Button>
-            ) : null}
+
           </div>
 
           {scheduleItems.length === 0 ? (
@@ -558,9 +616,13 @@ export default function SchedulePage({
                 const editableTask = editableScheduleItems[index];
                 const nextStartDate = editableTask?.startDate || originalStartDate;
                 const nextDuration = String(Number(editableTask?.duration || originalDuration));
+
                 const hasRowChanges =
                   nextStartDate !== originalStartDate || nextDuration !== originalDuration;
-                const previewEndDate = editableTask?.endDate || getScheduleEndDate(nextStartDate, nextDuration || task.duration);
+
+                const previewEndDate =
+                  editableTask?.endDate || getScheduleEndDate(nextStartDate, Number(nextDuration || task.duration || 1));
+                const completionStatusClass = task.completionStatus || "on-time";
 
                 return (
                   <div
@@ -569,7 +631,9 @@ export default function SchedulePage({
                       "schedule-card",
                       dragOverTaskIndex === index && draggedTaskIndex !== index ? "drag-over" : "",
                       draggedTaskIndex === index ? "is-dragging" : ""
-                    ].filter(Boolean).join(" ")}
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                     onDragOver={(event) => handleTaskDragOver(event, index)}
                     onDrop={() => handleTaskDrop(index)}
                   >
@@ -580,9 +644,26 @@ export default function SchedulePage({
                       onDragEnd={clearTaskDragState}
                     >
                       <div className="schedule-drag-hint">Drag To Reorder</div>
-                      <div className="row-title">{task.name}</div>
-                      <div className="row-subtitle schedule-task-meta">{task.category} • {nextDuration} day(s)</div>
+                      <div className="directory-title-row">
+                        <div className="row-title">{task.name}</div>
+                        {task.completed ? (
+                          <span className={`status-pill ${completionStatusClass}`}>
+                            {getTaskCompletionLabel(task.completionStatus)}
+                          </span>
+                        ) : (
+                          <span className="status-pill waiting">Waiting</span>
+                        )}
+                      </div>
+                      <div className="row-subtitle schedule-task-meta">
+                        {task.category} • {nextDuration} day(s)
+                      </div>
+                      {task.completed ? (
+                        <div className="row-subtitle">
+                          Completed {task.completedAt || "date not set"}
+                        </div>
+                      ) : null}
                     </div>
+
                     <div className="schedule-card-side">
                       <div className="schedule-edit-grid">
                         <label className="schedule-field">
@@ -590,7 +671,7 @@ export default function SchedulePage({
                           <BusinessDatePicker
                             dark={dark}
                             value={nextStartDate}
-                            min={minimumScheduleStartDate || undefined}
+                            min={minimumScheduleStartDate}
                             onChange={(value) => updatePendingTaskEdit(index, "startDate", value)}
                           />
                         </label>
@@ -601,14 +682,20 @@ export default function SchedulePage({
                             type="text"
                             inputMode="numeric"
                             value={nextDuration}
-                            onChange={(event) => updatePendingTaskEdit(index, "duration", event.target.value)}
+                            onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                              updatePendingTaskEdit(index, "duration", event.target.value)
+                            }
                           />
                         </label>
                       </div>
 
                       <div className="schedule-dates">
-                        <div><strong>Start:</strong> {nextStartDate || "Not set"}</div>
-                        <div><strong>End:</strong> {previewEndDate || "Not set"}</div>
+                        <div>
+                          <strong>Start:</strong> {nextStartDate || "Not set"}
+                        </div>
+                        <div>
+                          <strong>End:</strong> {previewEndDate || "Not set"}
+                        </div>
                       </div>
 
                       {hasRowChanges ? (
@@ -618,6 +705,20 @@ export default function SchedulePage({
                           </Button>
                         </div>
                       ) : null}
+
+                      {!task.completed ? (
+                        <div className="schedule-row-actions">
+                          <Button onClick={() => markTaskCompleted(index)}>
+                            Mark Complete
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="schedule-row-actions">
+                          <Button variant="secondary" onClick={() => markTaskInProgress(index)}>
+                            Back In Progress
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -631,10 +732,12 @@ export default function SchedulePage({
             <div>
               <h3>Timeline</h3>
               <p className="row-subtitle">
-                Drag the task name up or down to reorder. Drag a bar to move it, or drag the right edge to make it longer or shorter.
+                Drag the task name up or down to reorder. Drag a bar to move it, or drag the right edge to make it
+                longer or shorter.
               </p>
             </div>
           </div>
+
           {scheduleItems.length === 0 ? (
             <p>No tasks to display.</p>
           ) : (
@@ -652,7 +755,9 @@ export default function SchedulePage({
                       "timeline-row",
                       dragOverTaskIndex === entry.index && draggedTaskIndex !== entry.index ? "drag-over" : "",
                       draggedTaskIndex === entry.index ? "is-dragging" : ""
-                    ].filter(Boolean).join(" ")}
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                     onDragOver={(event) => handleTaskDragOver(event, entry.index)}
                     onDrop={() => handleTaskDrop(entry.index)}
                   >
@@ -665,15 +770,19 @@ export default function SchedulePage({
                       <div className="schedule-drag-hint">Drag To Reorder</div>
                       <div>{entry.task.name}</div>
                     </div>
+
                     <div className="timeline-bar-wrap">
                       <div
                         className={[
                           "timeline-bar",
                           timelineInteractionState?.taskIndex === entry.index ? "is-dragging" : "",
-                          timelineInteractionState?.taskIndex === entry.index && timelineInteractionState?.mode === "resize"
+                          timelineInteractionState?.taskIndex === entry.index &&
+                          timelineInteractionState?.mode === "resize"
                             ? "is-resizing"
                             : ""
-                        ].filter(Boolean).join(" ")}
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
                         style={{
                           left: `${leftPercent}%`,
                           width: `${Math.min(widthPercent, 100 - leftPercent)}%`
@@ -712,6 +821,7 @@ export default function SchedulePage({
               Review approved quotes with confirmed start dates, then open a quote to view its full schedule.
             </p>
           </div>
+
           {onGenerateDraftSchedule ? (
             <Button variant="secondary" onClick={onGenerateDraftSchedule}>
               Generate Schedule
@@ -725,7 +835,8 @@ export default function SchedulePage({
           <div>
             <h3>Active Quote Schedules</h3>
             <p className="row-subtitle">
-              Each active quote below shows its planned start date, schedule status, and completion action once the project has started.
+              Each active quote below shows its planned start date, schedule status, and completion action once the
+              project has started.
             </p>
           </div>
         </div>
@@ -738,15 +849,20 @@ export default function SchedulePage({
           <div className="list-table">
             {approvedQuotes.map((quote) => {
               const scheduleStatus = getScheduleStatus(quote);
+
               return (
                 <div key={quote.id} className="list-row quote-overview-row">
                   <div className="quote-overview-main">
                     <div className="quote-overview-heading">
                       <div className="row-title">{quote.projectTitle}</div>
-                      <span className={`status-pill ${scheduleStatus.className}`}>{scheduleStatus.label}</span>
+                      <span className={`status-pill ${scheduleStatus.className}`}>
+                        {scheduleStatus.label}
+                      </span>
                     </div>
+
                     <div className="row-subtitle">
-                      {formatQuoteReferenceNumber(quote)} • {quote.clientName || "No client name"} • {quote.startDate ? `Start Date: ${quote.startDate}` : "No start date"}
+                      {formatQuoteReferenceNumber(quote)} • {quote.clientName || "No client name"} •{" "}
+                      {quote.startDate ? `Start Date: ${quote.startDate}` : "No start date"}
                     </div>
                   </div>
 
@@ -754,19 +870,15 @@ export default function SchedulePage({
                     <div className="quote-overview-total">
                       {quote.schedule?.length ? getScheduleCountLabel(quote.schedule) : "No schedule yet"}
                     </div>
+
                     <div className="button-row quote-overview-actions">
                       {onGenerateQuoteSchedule ? (
-                        <Button
-                          variant="secondary"
-                          onClick={() => onGenerateQuoteSchedule(quote)}
-                        >
+                        <Button variant="secondary" onClick={() => onGenerateQuoteSchedule(quote)}>
                           Generate Schedule
                         </Button>
                       ) : null}
-                      <Button
-                        variant="secondary"
-                        onClick={() => onOpenQuoteSchedule?.(quote)}
-                      >
+
+                      <Button variant="secondary" onClick={() => onOpenQuoteSchedule?.(quote)}>
                         View Schedule
                       </Button>
                     </div>

@@ -57,15 +57,22 @@ export default function BusinessDatePicker({
   autoOpenOnMount = false
 }: BusinessDatePickerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+
   const normalizedValue = getNextBusinessDate(value) || toDateInputValue(value);
   const normalizedMin = getNextBusinessDate(min) || toDateInputValue(min);
+
+  const today = formatDateForInput(new Date());
+  const effectiveMin = normalizedMin && normalizedMin > today ? normalizedMin : today;
+
   const [isOpen, setIsOpen] = useState(false);
-  const [viewMonthDate, setViewMonthDate] = useState(() => getMonthStartDate(normalizedValue || normalizedMin || ""));
+  const [viewMonthDate, setViewMonthDate] = useState(() =>
+    getMonthStartDate(normalizedValue || effectiveMin || "")
+  );
 
   useEffect(() => {
     if (isOpen) return;
-    setViewMonthDate(getMonthStartDate(normalizedValue || normalizedMin || ""));
-  }, [isOpen, normalizedMin, normalizedValue]);
+    setViewMonthDate(getMonthStartDate(normalizedValue || effectiveMin || ""));
+  }, [isOpen, effectiveMin, normalizedValue]);
 
   useEffect(() => {
     if (!autoOpenOnMount) return;
@@ -96,11 +103,15 @@ export default function BusinessDatePicker({
           "schedule-date-picker-trigger",
           dark ? "dark" : "",
           normalizedValue ? "" : "is-placeholder"
-        ].filter(Boolean).join(" ")}
+        ]
+          .filter(Boolean)
+          .join(" ")}
         onClick={() => setIsOpen((previous) => !previous)}
       >
         <span>{normalizedValue || placeholder}</span>
-        <span className="schedule-date-picker-icon" aria-hidden="true">Calendar</span>
+        <span className="schedule-date-picker-icon" aria-hidden="true">
+          Calendar
+        </span>
       </button>
 
       {isOpen ? (
@@ -118,7 +129,9 @@ export default function BusinessDatePicker({
             >
               Prev
             </button>
+
             <div className="schedule-date-picker-month">{getMonthLabel(viewMonthDate)}</div>
+
             <button
               type="button"
               className="button secondary schedule-date-picker-nav"
@@ -140,7 +153,9 @@ export default function BusinessDatePicker({
                 className={[
                   "schedule-date-picker-weekday",
                   index === 0 || index === 6 ? "weekend" : ""
-                ].filter(Boolean).join(" ")}
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
               >
                 {label}
               </div>
@@ -149,7 +164,7 @@ export default function BusinessDatePicker({
 
           <div className="schedule-date-picker-grid">
             {calendarDays.map((day) => {
-              const isDisabled = day.isWeekend || Boolean(normalizedMin && day.value < normalizedMin);
+              const isDisabled = day.isWeekend || day.value < effectiveMin;
               const isSelected = normalizedValue === day.value;
 
               return (
@@ -162,7 +177,9 @@ export default function BusinessDatePicker({
                     day.isWeekend ? "weekend" : "",
                     isSelected ? "selected" : "",
                     isDisabled ? "disabled" : ""
-                  ].filter(Boolean).join(" ")}
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                   disabled={isDisabled}
                   onClick={() => {
                     if (isDisabled) return;
@@ -177,7 +194,7 @@ export default function BusinessDatePicker({
           </div>
 
           <div className="schedule-date-picker-note">
-            Weekend dates are unavailable.
+            Weekend dates and past dates are unavailable.
           </div>
         </div>
       ) : null}

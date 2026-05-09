@@ -62,6 +62,8 @@ export interface ScheduleItem extends QuoteItem {
   startDate: string;
   endDate: string;
   completed?: boolean;
+  completedAt?: string;
+  completionStatus?: "early" | "on-time" | "delayed";
 }
 
 export interface QuoteTotals {
