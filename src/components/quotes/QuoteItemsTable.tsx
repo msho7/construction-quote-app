@@ -13,12 +13,16 @@ type QuoteItemsTableProps = {
   onOpenTemplateBuilder: (templateId: string) => void;
   onGenerateSchedule: () => void;
   onSaveQuote: () => void;
+  onExportQuote?: () => void;
   onUpdateItem: (index: number, field: keyof QuoteItem, value: string) => void;
   onSelectPriceItem: (index: number, selectedName: string) => void;
   isSavedPriceListItem: (name: string) => boolean;
   activeQuoteItemIndex: number | null;
   onSetActiveQuoteItemIndex: Dispatch<SetStateAction<number | null>>;
   onSaveToPriceList: (item: QuoteItem) => void;
+  shouldShowSaveItemButton?: (item: QuoteItem, index: number) => boolean;
+  onDismissSaveItemPrompt?: (item: QuoteItem) => void;
+  onSaveRoomTemplate?: (roomId?: string) => void;
   onRemoveItem: (index: number) => void;
 };
 
@@ -32,21 +36,35 @@ export default function QuoteItemsTable({
   onOpenTemplateBuilder,
   onGenerateSchedule,
   onSaveQuote,
+  onExportQuote,
   onUpdateItem,
   onSelectPriceItem,
   isSavedPriceListItem,
   activeQuoteItemIndex,
   onSetActiveQuoteItemIndex,
   onSaveToPriceList,
+  shouldShowSaveItemButton,
+  onDismissSaveItemPrompt,
+  onSaveRoomTemplate,
   onRemoveItem
 }: QuoteItemsTableProps) {
+  const handleRoomNameChange =
+    (index: number) =>
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      onUpdateItem(index, "roomName", event.target.value);
+    };
+
   return (
     <Card dark={dark}>
       <div className="section-header">
         <h3>Quote Items</h3>
         <div className="button-row">
+          <Button onClick={onAddItem}>Add Item</Button>
           <Button variant="secondary" onClick={onGenerateSchedule}>📅 Generate Schedule</Button>
           <Button variant="secondary" onClick={onSaveQuote}>💾 Save Quote</Button>
+          {onExportQuote ? (
+            <Button variant="secondary" onClick={onExportQuote}>📤 Export Quote</Button>
+          ) : null}
         </div>
       </div>
 
@@ -59,8 +77,15 @@ export default function QuoteItemsTable({
                   className="room-name-input"
                   placeholder="Room name"
                   value={item.roomName || ""}
-                  onChange={(e) => onUpdateItem(index, "roomName", e.target.value)}
+                  onChange={handleRoomNameChange(index)}
                 />
+                {onSaveRoomTemplate ? (
+                  <div className="room-name-actions">
+                    <Button variant="secondary" onClick={() => onSaveRoomTemplate(item.roomId)}>
+                      Save Room
+                    </Button>
+                  </div>
+                ) : null}
               </div>
 
               <div className="quote-header-row room-section-header">
@@ -86,6 +111,9 @@ export default function QuoteItemsTable({
             activeQuoteItemIndex={activeQuoteItemIndex}
             onSetActiveQuoteItemIndex={onSetActiveQuoteItemIndex}
             onSaveToPriceList={onSaveToPriceList}
+            shouldShowSaveItemButton={shouldShowSaveItemButton}
+            onDismissSaveItemPrompt={onDismissSaveItemPrompt}
+            isRoomLead={index === 0 || item.roomId !== items[index - 1]?.roomId}
             onRemoveItem={onRemoveItem}
           />
         </React.Fragment>

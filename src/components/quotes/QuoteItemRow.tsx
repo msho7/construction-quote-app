@@ -15,6 +15,9 @@ type QuoteItemRowProps = {
   onSetActiveQuoteItemIndex: Dispatch<SetStateAction<number | null>>;
   onSaveToPriceList: (item: QuoteItem) => void;
   onRemoveItem: (index: number) => void;
+  shouldShowSaveItemButton?: (item: QuoteItem, index: number) => boolean;
+  onDismissSaveItemPrompt?: (item: QuoteItem) => void;
+  isRoomLead?: boolean;
 };
 
 export default function QuoteItemRow({
@@ -27,21 +30,43 @@ export default function QuoteItemRow({
   activeQuoteItemIndex,
   onSetActiveQuoteItemIndex,
   onSaveToPriceList,
-  onRemoveItem
+  onRemoveItem,
+  shouldShowSaveItemButton,
+  onDismissSaveItemPrompt,
+  isRoomLead = false
 }: QuoteItemRowProps) {
+  const showSaveItemButton = shouldShowSaveItemButton
+    ? shouldShowSaveItemButton(item, index)
+    : !isSavedPriceListItem(item.name) && item.name.trim() && activeQuoteItemIndex !== index;
+  const handleTextFieldChange =
+    (field: keyof QuoteItem) =>
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      onUpdateItem(index, field, event.target.value);
+    };
+  const handleSelectFieldChange =
+    (field: keyof QuoteItem) =>
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      onUpdateItem(index, field, event.target.value);
+    };
+
   return (
-    <div className="quote-row advanced">
+    <div className={`quote-row advanced${isRoomLead ? " room-start" : ""}`}>
       <div className="item-picker">
         <Input
           list={`price-list-options-${index}`}
           placeholder="Select saved item or type a new one"
           value={item.name}
-          onFocus={() => onSetActiveQuoteItemIndex(index)}
+          onFocus={() => {
+            if (showSaveItemButton) {
+              onDismissSaveItemPrompt?.(item);
+            }
+            onSetActiveQuoteItemIndex(index);
+          }}
           onBlur={() => {
             onSetActiveQuoteItemIndex((previous) => (previous === index ? null : previous));
           }}
-          onChange={(e) => {
-            const nextName = e.target.value;
+          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+            const nextName = event.target.value;
             onUpdateItem(index, "name", nextName);
             if (isSavedPriceListItem(nextName)) {
               onSelectPriceItem(index, nextName);
@@ -61,12 +86,12 @@ export default function QuoteItemRow({
         type="text"
         inputMode="decimal"
         value={getNumericInputValue(item.quantity)}
-        onChange={(e) => onUpdateItem(index, "quantity", e.target.value)}
+        onChange={handleTextFieldChange("quantity")}
       />
 
       <Select
         value={item.unit}
-        onChange={(e) => onUpdateItem(index, "unit", e.target.value)}
+        onChange={handleSelectFieldChange("unit")}
       >
         {UNIT_OPTIONS.map((unitOption) => (
           <option key={unitOption.value} value={unitOption.value}>
@@ -77,7 +102,7 @@ export default function QuoteItemRow({
 
       <Select
         value={item.category}
-        onChange={(e) => onUpdateItem(index, "category", e.target.value)}
+        onChange={handleSelectFieldChange("category")}
       >
         <option value="Labor">Labor</option>
         <option value="Material">Material</option>
@@ -89,7 +114,7 @@ export default function QuoteItemRow({
         inputMode="decimal"
         placeholder="$0.00"
         value={getNumericInputValue(item.pricePerUnit, { hideZero: true })}
-        onChange={(e) => onUpdateItem(index, "pricePerUnit", e.target.value)}
+        onChange={handleTextFieldChange("pricePerUnit")}
       />
 
       <Input
@@ -97,13 +122,13 @@ export default function QuoteItemRow({
         inputMode="decimal"
         placeholder="Markup %"
         value={getNumericInputValue(item.markupRate)}
-        onChange={(e) => onUpdateItem(index, "markupRate", e.target.value)}
+        onChange={handleTextFieldChange("markupRate")}
       />
 
       <div className="money-cell">{formatMoney(getItemTotal(item))}</div>
 
       <div className="button-stack compact">
-        {!isSavedPriceListItem(item.name) && item.name.trim() && activeQuoteItemIndex !== index ? (
+        {showSaveItemButton ? (
           <Button variant="secondary" onClick={() => onSaveToPriceList(item)}>Save Item</Button>
         ) : null}
         <Button variant="danger" onClick={() => onRemoveItem(index)}>Delete</Button>

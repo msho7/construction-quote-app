@@ -42,6 +42,8 @@ export interface ContractorProfile {
   lastAssignedJobDate?: string;
   phone: string;
   email: string;
+  rate?: string;
+  rateType?: "project" | "hour" | "day";
   address: string;
   unitNumber: string;
   city: string;

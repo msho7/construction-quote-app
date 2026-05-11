@@ -176,7 +176,6 @@ const buildExcelWorkbook = (quote) => {
   const {
     contractor,
     customer,
-    quoteItems,
     quoteNumber,
     validForDays,
     notesAndTerms,
@@ -856,7 +855,6 @@ const buildPdfDocument = (quote, documentTitle) => {
   const {
     contractor,
     customer,
-    quoteItems,
     quoteNumber,
     validForDays,
     notesAndTerms,
@@ -1200,7 +1198,7 @@ const buildPdfDocument = (quote, documentTitle) => {
 };
 
 export const exportQuoteToPdf = (quote, filename) => {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") return false;
 
   const documentTitle = filename || quote.projectTitle || "Construction Quote";
   const printableHtml = buildPdfDocument(quote, documentTitle);
@@ -1209,8 +1207,7 @@ export const exportQuoteToPdf = (quote, filename) => {
   const printWindow = window.open(printableUrl, "_blank", "width=960,height=720");
   if (!printWindow) {
     URL.revokeObjectURL(printableUrl);
-    window.alert("Please allow pop-ups to save the quote as PDF.");
-    return;
+    return false;
   }
 
   let hasTriggeredPrint = false;
@@ -1246,4 +1243,6 @@ export const exportQuoteToPdf = (quote, filename) => {
       // The blob document may not be ready on the first poll; keep waiting.
     }
   }, 200);
+
+  return true;
 };

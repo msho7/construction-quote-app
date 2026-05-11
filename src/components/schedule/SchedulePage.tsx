@@ -106,6 +106,14 @@ const getProjectHasStarted = (quote: SavedQuote) => {
 };
 
 const getScheduleStatus = (quote: SavedQuote) => {
+  if (quote.status === "invoiced") {
+    return { className: "invoiced", label: "Invoiced" };
+  }
+
+  if (quote.status === "completed") {
+    return { className: "completed", label: "Completed" };
+  }
+
   const today = toDateInputValue(new Date().toISOString().slice(0, 10));
   const startDate = toDateInputValue(quote.startDate) || toDateInputValue(quote.schedule?.[0]?.startDate);
   const latestEndDate = getLatestScheduleEndDate(quote);
@@ -488,6 +496,8 @@ export default function SchedulePage({
   };
 
   const selectedQuoteScheduleStatus = selectedQuoteSchedule ? getScheduleStatus(selectedQuoteSchedule) : null;
+  const isSelectedQuoteLocked =
+    !shouldShowDraftDetail && ["completed", "invoiced"].includes(selectedQuoteSchedule?.status || "");
 
   if (selectedQuoteSchedule || shouldShowDraftDetail) {
     return (
@@ -506,7 +516,7 @@ export default function SchedulePage({
                 </Button>
               ) : null}
 
-              {!shouldShowDraftDetail && selectedQuoteSchedule && onGenerateQuoteSchedule ? (
+              {!shouldShowDraftDetail && selectedQuoteSchedule && onGenerateQuoteSchedule && !isSelectedQuoteLocked ? (
                 <Button variant="secondary" onClick={() => onGenerateQuoteSchedule(selectedQuoteSchedule)}>
                   Generate Schedule
                 </Button>
@@ -540,7 +550,7 @@ export default function SchedulePage({
                   <strong>Start Date:</strong> {currentScheduleStartDate || "Not set"}
                 </div>
 
-                {scheduleItems.length ? (
+                {scheduleItems.length && !isSelectedQuoteLocked ? (
                   <Button
                     variant="secondary"
                     onClick={() => {
@@ -629,21 +639,24 @@ export default function SchedulePage({
                     key={`${task.name}-${index}`}
                     className={[
                       "schedule-card",
+                      isSelectedQuoteLocked ? "locked" : "",
                       dragOverTaskIndex === index && draggedTaskIndex !== index ? "drag-over" : "",
                       draggedTaskIndex === index ? "is-dragging" : ""
                     ]
                       .filter(Boolean)
                       .join(" ")}
-                    onDragOver={(event) => handleTaskDragOver(event, index)}
-                    onDrop={() => handleTaskDrop(index)}
+                    onDragOver={isSelectedQuoteLocked ? undefined : (event) => handleTaskDragOver(event, index)}
+                    onDrop={isSelectedQuoteLocked ? undefined : () => handleTaskDrop(index)}
                   >
                     <div
-                      className="schedule-card-main draggable"
-                      draggable
-                      onDragStart={(event) => handleTaskDragStart(event, index)}
-                      onDragEnd={clearTaskDragState}
+                      className={`schedule-card-main${isSelectedQuoteLocked ? "" : " draggable"}`}
+                      draggable={!isSelectedQuoteLocked}
+                      onDragStart={isSelectedQuoteLocked ? undefined : (event) => handleTaskDragStart(event, index)}
+                      onDragEnd={isSelectedQuoteLocked ? undefined : clearTaskDragState}
                     >
-                      <div className="schedule-drag-hint">Drag To Reorder</div>
+                      {!isSelectedQuoteLocked ? (
+                        <div className="schedule-drag-hint">Drag To Reorder</div>
+                      ) : null}
                       <div className="directory-title-row">
                         <div className="row-title">{task.name}</div>
                         {task.completed ? (
@@ -665,7 +678,8 @@ export default function SchedulePage({
                     </div>
 
                     <div className="schedule-card-side">
-                      <div className="schedule-edit-grid">
+                      {!isSelectedQuoteLocked ? (
+                        <div className="schedule-edit-grid">
                         <label className="schedule-field">
                           <span>Start Date</span>
                           <BusinessDatePicker
@@ -687,7 +701,8 @@ export default function SchedulePage({
                             }
                           />
                         </label>
-                      </div>
+                        </div>
+                      ) : null}
 
                       <div className="schedule-dates">
                         <div>
@@ -698,7 +713,7 @@ export default function SchedulePage({
                         </div>
                       </div>
 
-                      {hasRowChanges ? (
+                      {hasRowChanges && !isSelectedQuoteLocked ? (
                         <div className="schedule-row-actions">
                           <Button variant="secondary" onClick={() => applyTaskUpdate(index, task)}>
                             Update
@@ -706,19 +721,21 @@ export default function SchedulePage({
                         </div>
                       ) : null}
 
-                      {!task.completed ? (
-                        <div className="schedule-row-actions">
-                          <Button onClick={() => markTaskCompleted(index)}>
-                            Mark Complete
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="schedule-row-actions">
-                          <Button variant="secondary" onClick={() => markTaskInProgress(index)}>
-                            Back In Progress
-                          </Button>
-                        </div>
-                      )}
+                      {!isSelectedQuoteLocked ? (
+                        !task.completed ? (
+                          <div className="schedule-row-actions">
+                            <Button onClick={() => markTaskCompleted(index)}>
+                              Mark Complete
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="schedule-row-actions">
+                            <Button variant="secondary" onClick={() => markTaskInProgress(index)}>
+                              Back In Progress
+                            </Button>
+                          </div>
+                        )
+                      ) : null}
                     </div>
                   </div>
                 );

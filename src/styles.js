@@ -13,6 +13,55 @@ export const APP_STYLES = `
     background: #0f172a;
     color: #e5e7eb;
   }
+  .app-notification {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 1100;
+    width: min(420px, calc(100vw - 36px));
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1e3a8a;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+    font-size: 0.95rem;
+    line-height: 1.4;
+  }
+  .app-notification.success {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+  }
+  .app-notification.warning {
+    border-color: #fde68a;
+    background: #fffbeb;
+    color: #92400e;
+  }
+  .app-notification.error {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
+  }
+  .app-notification-close {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.08);
+    color: inherit;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .app-shell.dark + .app-notification {
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  }
 
   .sidebar {
     padding: 24px;
@@ -57,6 +106,7 @@ export const APP_STYLES = `
   .grid.price-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .grid.template-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .grid.customer-address-row { grid-template-columns: minmax(0, 2fr) minmax(140px, 0.8fr); }
+  .grid.contractor-rate-row { grid-template-columns: minmax(0, 1fr) minmax(140px, 0.6fr); }
   .span-two { grid-column: span 2; }
 
   .stats-grid {
@@ -1247,13 +1297,14 @@ export const APP_STYLES = `
     }
     .analysis-grid { grid-template-columns: 1fr; }
     .grid.customer-address-row { grid-template-columns: minmax(0, 2fr) minmax(140px, 0.8fr); }
+    .grid.contractor-rate-row { grid-template-columns: minmax(0, 1fr) minmax(140px, 0.6fr); }
     .span-two { grid-column: auto; }
   }
 
   @media (max-width: 760px) {
     .main-content, .sidebar { padding: 16px; }
     .stats-grid, .analysis-metric-grid, .analysis-status-grid, .analysis-detail-grid, .analysis-table-row, .two-col-layout, .grid.three-col, .grid.price-grid, .grid.template-grid,
-    .export-modal-grid, .room-name-row, .grid.customer-address-row,
+    .export-modal-grid, .room-name-row, .grid.customer-address-row, .grid.contractor-rate-row,
     .quote-header-row, .quote-row.advanced, .item-picker,
     .room-template-editor-header, .room-template-editor-row,
     .saved-room-templates-header, .saved-room-templates-row { grid-template-columns: 1fr; }

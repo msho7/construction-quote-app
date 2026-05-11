@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { APP_STYLES } from "./styles";
 import { useDarkMode } from "./hooks/useDarkMode";
@@ -32,6 +32,8 @@ import { exportQuoteToExcel, exportQuoteToPdf } from "./utils/exportUtils";
 import { Card, Button, Input, Select } from "./components/ui";
 import AnalysisPage from "./components/analysis/AnalysisPage";
 import CustomerPage from "./components/customer/CustomerPage";
+import ContractorPage from "./components/contractor/ContractorPage";
+import QuoteItemsTable from "./components/quotes/QuoteItemsTable";
 import QuotesLandingPage from "./components/quotes/QuotesLandingPage";
 import SchedulePage from "./components/schedule/SchedulePage";
 
@@ -56,6 +58,8 @@ const EMPTY_CONTRACTOR_PROFILE = {
   lastAssignedJobDate: "",
   phone: "",
   email: "",
+  rate: "",
+  rateType: "hour",
   address: "",
   unitNumber: "",
   city: "",
@@ -81,6 +85,8 @@ const CONTRACTOR_PROFILE_FIELDS = [
   "trade",
   "phone",
   "email",
+  "rate",
+  "rateType",
   "address",
   "unitNumber",
   "city",
@@ -132,14 +138,6 @@ const getContractorInactiveAfterDate = (profile = {}, settings = DEFAULT_CONTRAC
 
   return addMonthsToDateInput(profile.lastAssignedJobDate, getContractorExpiryMonths(expirySettings));
 };
-const getContractorExpiryLabel = (settings = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
-  const expirySettings = getContractorExpirySettings(settings);
-  const unitLabel = expirySettings.amount === 1
-    ? expirySettings.unit.replace(/s$/, "")
-    : expirySettings.unit;
-
-  return `${expirySettings.amount} ${unitLabel}`;
-};
 const getContractorActivityStatus = (profile = {}, settings = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
   const expirySettings = getContractorExpirySettings(settings);
   if (!expirySettings.enabled) return "active";
@@ -178,16 +176,13 @@ const normalizeContractorProfile = (profile = {}, settings = DEFAULT_CONTRACTOR_
 };
 const hasContractorProfileData = (profile = EMPTY_CONTRACTOR_PROFILE) =>
   CONTRACTOR_PROFILE_FIELDS.some((field) => String(profile?.[field] || "").trim());
-const getContractorDisplayName = (profile = EMPTY_CONTRACTOR_PROFILE) =>
-  String(profile?.companyName || "").trim() ||
-  String(profile?.contactName || "").trim() ||
-  "Contractor";
 const hasCustomerProfileData = (profile = EMPTY_CUSTOMER_PROFILE) =>
   CUSTOMER_PROFILE_FIELDS.some((field) => String(profile?.[field] || "").trim());
 const getCustomerDisplayName = (profile = EMPTY_CUSTOMER_PROFILE) =>
   String(profile?.customerName || "").trim() ||
   String(profile?.companyName || "").trim() ||
   "Customer";
+const isProjectLocked = (quote = {}) => ["completed", "invoiced"].includes(quote?.status);
 const getProfileAddressDisplay = (profile = {}) => {
   const unitNumber = String(profile?.unitNumber || "").trim();
   const streetAddress = String(profile?.address || "").trim();
@@ -367,6 +362,38 @@ const markScheduleTaskInProgressInCollection = (scheduleItems = [], taskIndex) =
     )
   );
 
+const getScheduleTaskIdentity = (task = {}) =>
+  task.itemId ||
+  [
+    task.name,
+    task.roomName,
+    task.category,
+    task.unit
+  ].map((value) => String(value || "").trim().toLowerCase()).join("|");
+
+const preserveScheduleCompletionState = (nextSchedule = [], previousSchedule = []) => {
+  const completionByTask = new Map(
+    previousSchedule
+      .map((task) => [getScheduleTaskIdentity(task), task])
+      .filter(([taskKey]) => taskKey)
+  );
+
+  return normalizeScheduleItems(
+    nextSchedule.map((task) => {
+      const previousTask = completionByTask.get(getScheduleTaskIdentity(task));
+
+      if (!previousTask) return task;
+
+      return {
+        ...task,
+        completed: Boolean(previousTask.completed),
+        completedAt: previousTask.completedAt || "",
+        completionStatus: previousTask.completionStatus || ""
+      };
+    })
+  );
+};
+
 const resequenceScheduleItems = (scheduleItems = [], scheduleStartDate = "") => {
   const normalizedSchedule = normalizeScheduleItems(scheduleItems);
   const normalizedStartDate = getNextBusinessDate(scheduleStartDate) || normalizedSchedule[0]?.startDate || "";
@@ -438,10 +465,7 @@ const syncQuoteItemsToSchedule = (quoteItems = [], scheduleItems = []) => {
         unit: task.unit || matchingItem.unit,
         category: task.category || matchingItem.category,
         pricePerUnit: Number(task.pricePerUnit ?? matchingItem.pricePerUnit ?? 0),
-        markupRate: Number(task.markupRate ?? matchingItem.markupRate ?? DEFAULT_ITEM_MARKUP_RATE),
-        completed: Boolean(task.completed),
-        completedAt: task.completedAt || "",
-        completionStatus: task.completionStatus || ""
+        markupRate: Number(task.markupRate ?? matchingItem.markupRate ?? DEFAULT_ITEM_MARKUP_RATE)
       };
     })
     .filter(Boolean);
@@ -674,11 +698,31 @@ export default function ConstructionQuoteApp() {
   const [editingRoomTemplateId, setEditingRoomTemplateId] = useState(null);
   const [roomTemplateDraft, setRoomTemplateDraft] = useState(null);
   const [editingQuoteId, setEditingQuoteId] = useState(null);
+  const [lockedQuoteViewId, setLockedQuoteViewId] = useState(null);
   const [quotesView, setQuotesView] = useState("landing");
   const [selectedScheduleQuoteId, setSelectedScheduleQuoteId] = useState(null);
   const [showDraftSchedulePreview, setShowDraftSchedulePreview] = useState(false);
   const [quotesCustomerFilter, setQuotesCustomerFilter] = useState(null);
   const [quotesInitialProjectList, setQuotesInitialProjectList] = useState("");
+  const [notification, setNotification] = useState(null);
+  const notificationTimeoutRef = useRef(null);
+
+  const showNotification = (message, variant = "success") => {
+    if (notificationTimeoutRef.current) {
+      window.clearTimeout(notificationTimeoutRef.current);
+    }
+
+    setNotification({
+      id: Date.now(),
+      message,
+      variant
+    });
+
+    notificationTimeoutRef.current = window.setTimeout(() => {
+      setNotification(null);
+      notificationTimeoutRef.current = null;
+    }, 3600);
+  };
 
   const updateScheduleTaskCollection = (scheduleItems, taskIndex, field, value) => {
     const normalizedDuration = Math.max(1, Number(sanitizeNumericInput(value, { allowDecimal: false }) || 1));
@@ -741,6 +785,19 @@ export default function ConstructionQuoteApp() {
     );
   };
 
+  const updateContractorExpirySettings = (updater) => {
+    const nextSettings = getContractorExpirySettings(
+      typeof updater === "function" ? updater(contractorExpirySettings) : updater
+    );
+
+    setContractorExpirySettings(nextSettings);
+    setSavedContractors((previousContractors) =>
+      previousContractors.map((contractor) => normalizeContractorProfile(contractor, nextSettings))
+    );
+    setContractorProfile((previousContractor) => normalizeContractorProfile(previousContractor, nextSettings));
+    setContractorDraft((previousContractor) => normalizeContractorProfile(previousContractor, nextSettings));
+  };
+
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("priceList", JSON.stringify(priceList));
   }, [priceList]);
@@ -790,102 +847,14 @@ export default function ConstructionQuoteApp() {
     }
   }, [customerProfile]);
 
-  useEffect(() => {
-    setSavedContractors((previous) =>
-      previous.map((contractor) => normalizeContractorProfile(contractor, contractorExpirySettings))
-    );
-    setContractorProfile((previous) => normalizeContractorProfile(previous, contractorExpirySettings));
-    setContractorDraft((previous) => normalizeContractorProfile(previous, contractorExpirySettings));
-  }, [contractorExpirySettings]);
-
-  useEffect(() => {
-    if (!savedContractors.length) {
-      setSelectedContractorId(null);
-
-      if (!isEditingContractor) {
-        const emptyContractor = normalizeContractorProfile({}, contractorExpirySettings);
-        setContractorProfile(emptyContractor);
-        setContractorDraft(emptyContractor);
-        setShowContractorNotes(false);
+  useEffect(
+    () => () => {
+      if (notificationTimeoutRef.current) {
+        window.clearTimeout(notificationTimeoutRef.current);
       }
-
-      return;
-    }
-
-    if (selectedContractorId) {
-      const selectedContractor = savedContractors.find((contractor) => contractor.id === selectedContractorId);
-
-      if (selectedContractor) {
-        if ((!contractorProfile.id || contractorProfile.id !== selectedContractorId) && !isEditingContractor) {
-          const normalizedContractor = normalizeContractorProfile(selectedContractor, contractorExpirySettings);
-          setContractorProfile(normalizedContractor);
-          setContractorDraft(normalizedContractor);
-          setShowContractorNotes(Boolean(normalizedContractor.notes?.trim()));
-        }
-
-        return;
-      }
-
-      setSelectedContractorId(null);
-      setShowContractorNotes(false);
-      return;
-    }
-  }, [savedContractors, selectedContractorId, isEditingContractor, contractorExpirySettings]);
-
-  useEffect(() => {
-    if (!savedCustomers.length) {
-      setSelectedCustomerId(null);
-
-      if (!isEditingCustomer) {
-        const emptyCustomer = normalizeCustomerRecord();
-        setCustomerProfile(emptyCustomer);
-        setCustomerDraft(emptyCustomer);
-        setShowCustomerNotes(false);
-        setIsEditingCustomer(true);
-      }
-
-      return;
-    }
-
-    if (selectedCustomerId) {
-      const selectedCustomer = savedCustomers.find((customer) => customer.id === selectedCustomerId);
-
-      if (selectedCustomer) {
-        if ((!customerProfile.id || customerProfile.id !== selectedCustomerId) && !isEditingCustomer) {
-          const normalizedCustomer = normalizeCustomerRecord(selectedCustomer);
-          setCustomerProfile(normalizedCustomer);
-          setCustomerDraft(normalizedCustomer);
-          setShowCustomerNotes(Boolean(normalizedCustomer.notes?.trim()));
-        }
-
-        return;
-      }
-
-      setSelectedCustomerId(null);
-      setShowCustomerNotes(false);
-      return;
-    }
-  }, [savedCustomers, selectedCustomerId, isEditingCustomer]);
-
-  useEffect(() => {
-    if (!selectedQuoteCustomerId) return;
-
-    const selectedQuoteCustomer = savedCustomers.find((customer) => customer.id === selectedQuoteCustomerId);
-    if (!selectedQuoteCustomer) return;
-
-    const normalizedCustomer = normalizeCustomerRecord(selectedQuoteCustomer);
-    setQuoteCustomerProfile(normalizedCustomer);
-    setClientName(getCustomerDisplayName(normalizedCustomer));
-  }, [savedCustomers, selectedQuoteCustomerId]);
-
-  useEffect(() => {
-    if (
-      selectedScheduleQuoteId !== null &&
-      !savedQuotes.some((quote) => quote.id === selectedScheduleQuoteId && ["approved", "ongoing"].includes(quote.status))
-    ) {
-      setSelectedScheduleQuoteId(null);
-    }
-  }, [savedQuotes, selectedScheduleQuoteId]);
+    },
+    []
+  );
 
   const updateItem = (index, field, value) => {
     setItems((previous) => {
@@ -957,9 +926,7 @@ export default function ConstructionQuoteApp() {
     setIsEditingContractor(false);
     setShowContractorNotes(existingContractor ? Boolean(nextContractorProfile.notes?.trim()) : false);
 
-    if (typeof window !== "undefined") {
-      window.alert(existingContractor ? "Contractor updated successfully" : "Contractor saved successfully");
-    }
+    showNotification(existingContractor ? "Contractor updated successfully." : "Contractor saved successfully.");
   };
 
   const getContractorAssignmentDate = (quote = {}) =>
@@ -1082,9 +1049,7 @@ export default function ConstructionQuoteApp() {
     setIsEditingCustomer(false);
     setShowCustomerNotes(existingCustomer ? Boolean(nextCustomerProfile.notes?.trim()) : false);
 
-    if (typeof window !== "undefined") {
-      window.alert(existingCustomer ? "Customer updated successfully" : "Customer saved successfully");
-    }
+    showNotification(existingCustomer ? "Customer updated successfully." : "Customer saved successfully.");
   };
 
   const selectCustomer = (customer) => {
@@ -1320,7 +1285,7 @@ export default function ConstructionQuoteApp() {
         item.name !== editingPriceItemName
     );
     if (duplicateItem) {
-      if (typeof window !== "undefined") window.alert("A price list item with that name already exists.");
+      showNotification("A price list item with that name already exists.", "warning");
       return;
     }
 
@@ -1419,12 +1384,12 @@ export default function ConstructionQuoteApp() {
     const roomItems = serializeRoomTemplateItems(items.filter((item) => item.roomId === roomId));
 
     if (!roomName) {
-      if (typeof window !== "undefined") window.alert("Add a room name before saving the room.");
+      showNotification("Add a room name before saving the room.", "warning");
       return;
     }
 
     if (!roomItems.length) {
-      if (typeof window !== "undefined") window.alert("Add at least one quote item in this room before saving the template.");
+      showNotification("Add at least one quote item in this room before saving the template.", "warning");
       return;
     }
 
@@ -1463,9 +1428,7 @@ export default function ConstructionQuoteApp() {
       });
     }
 
-    if (typeof window !== "undefined") {
-      window.alert(roomLeadItem?.roomTemplateId ? "Room template updated successfully" : "Room template saved successfully");
-    }
+    showNotification(roomLeadItem?.roomTemplateId ? "Room template updated successfully." : "Room template saved successfully.");
   };
 
   const saveRoomTemplateEdits = () => {
@@ -1475,12 +1438,12 @@ export default function ConstructionQuoteApp() {
     const nextItems = serializeRoomTemplateItems(roomTemplateDraft.items);
 
     if (!trimmedName) {
-      if (typeof window !== "undefined") window.alert("Enter a template name before saving.");
+      showNotification("Enter a template name before saving.", "warning");
       return;
     }
 
     if (!nextItems.length) {
-      if (typeof window !== "undefined") window.alert("Add at least one template item before saving.");
+      showNotification("Add at least one template item before saving.", "warning");
       return;
     }
 
@@ -1506,14 +1469,12 @@ export default function ConstructionQuoteApp() {
       items: normalizeRoomTemplateItems(nextTemplate.items)
     });
 
-    if (typeof window !== "undefined") {
-      window.alert("Room template updated successfully");
-    }
+    showNotification("Room template updated successfully.");
   };
 
   const deleteRoomTemplate = (templateId) => {
     if (isBuiltInRoomTemplateId(templateId)) {
-      if (typeof window !== "undefined") window.alert("Preinstalled templates can be edited, but not deleted.");
+      showNotification("Preinstalled templates can be edited, but not deleted.", "warning");
       return;
     }
 
@@ -1582,13 +1543,14 @@ export default function ConstructionQuoteApp() {
     if (!savedQuote) return;
 
     if (!savedQuote.startDate) {
-      if (typeof window !== "undefined") {
-        window.alert("Please add a start date to this quote before generating its schedule.");
-      }
+      showNotification("Please add a start date to this quote before generating its schedule.", "warning");
       return;
     }
 
-    const regeneratedSchedule = buildScheduleFromItems(savedQuote.items || [], savedQuote.startDate);
+    const regeneratedSchedule = preserveScheduleCompletionState(
+      buildScheduleFromItems(savedQuote.items || [], savedQuote.startDate),
+      savedQuote.schedule || []
+    );
 
     setSavedQuotes((previous) =>
       previous.map((quote) =>
@@ -1763,6 +1725,7 @@ export default function ConstructionQuoteApp() {
 
   const startNewQuote = () => {
     setEditingQuoteId(null);
+    setLockedQuoteViewId(null);
     setSelectedQuoteCustomerId("");
     setQuoteCustomerProfile(normalizeCustomerRecord());
     setProjectTitle("");
@@ -1872,7 +1835,7 @@ export default function ConstructionQuoteApp() {
     const invoicePartNumber = existingQuote?.invoicePartNumber || 1;
 
     if (!filledItems.length) {
-      if (typeof window !== "undefined") window.alert("Add at least one quote item before exporting.");
+      showNotification("Add at least one quote item before exporting.", "warning");
       return null;
     }
 
@@ -1935,7 +1898,11 @@ export default function ConstructionQuoteApp() {
     if (exportFormat === "excel") {
       exportQuoteToExcel(quote, trimmedFileName);
     } else {
-      exportQuoteToPdf(quote, trimmedFileName);
+      const didOpenPrintWindow = exportQuoteToPdf(quote, trimmedFileName);
+      if (didOpenPrintWindow === false) {
+        showNotification("Please allow pop-ups to save the quote as PDF.", "warning");
+        return;
+      }
     }
 
     closeExportModal();
@@ -1945,7 +1912,7 @@ export default function ConstructionQuoteApp() {
 
   const generateSchedule = () => {
     if (!startDate) {
-      if (typeof window !== "undefined") window.alert("Please select a start date");
+      showNotification("Please select a start date.", "warning");
       return;
     }
 
@@ -1963,6 +1930,12 @@ export default function ConstructionQuoteApp() {
     const existingQuote = editingQuoteId
       ? savedQuotes.find((savedQuote) => savedQuote.id === editingQuoteId)
       : null;
+
+    if (isProjectLocked(existingQuote) || (editingQuoteId && lockedQuoteViewId === editingQuoteId)) {
+      showNotification("Completed projects are locked and cannot be edited.", "warning");
+      return;
+    }
+
     const normalizedQuoteCustomerProfile = hasCustomerProfileData(quoteCustomerProfile)
       ? normalizeCustomerRecord(quoteCustomerProfile)
       : null;
@@ -2009,12 +1982,10 @@ export default function ConstructionQuoteApp() {
       );
     }
 
-    if (typeof window !== "undefined") {
-      if (quoteStatus === "approved") {
-        window.alert(existingQuote ? "Quote approved successfully" : "Quote saved and approved successfully");
-      } else {
-        window.alert(existingQuote ? "Quote updated successfully" : "Quote saved successfully");
-      }
+    if (quoteStatus === "approved") {
+      showNotification(existingQuote ? "Quote approved successfully." : "Quote saved and approved successfully.");
+    } else {
+      showNotification(existingQuote ? "Quote updated successfully." : "Quote saved successfully.");
     }
   };
 
@@ -2022,7 +1993,7 @@ export default function ConstructionQuoteApp() {
     saveQuote({ status: "approved" });
   };
 
-  const loadQuote = (quote) => {
+  const loadQuote = (quote, options = {}) => {
     const matchedSavedCustomer = savedCustomers.find((customer) => {
       if (quote.customerId && customer.id === quote.customerId) return true;
       if (quote.customerProfile?.id && customer.id === quote.customerProfile.id) return true;
@@ -2031,6 +2002,7 @@ export default function ConstructionQuoteApp() {
     const nextQuoteCustomerProfile = normalizeCustomerRecord(matchedSavedCustomer || quote.customerProfile || {});
 
     setEditingQuoteId(quote.id);
+    setLockedQuoteViewId(options.readOnly || isProjectLocked(quote) ? quote.id : null);
     setProjectTitle(quote.projectTitle || "");
     setClientName(quote.clientName || (hasCustomerProfileData(nextQuoteCustomerProfile) ? getCustomerDisplayName(nextQuoteCustomerProfile) : ""));
     setSelectedQuoteCustomerId(matchedSavedCustomer?.id || quote.customerId || quote.customerProfile?.id || "");
@@ -2070,18 +2042,32 @@ export default function ConstructionQuoteApp() {
     }
   };
 
-  const toggleQuoteInvoiced = (quoteId) => {
-    setSavedQuotes((previous) =>
-      previous.map((quote) =>
-        quote.id !== quoteId
-          ? quote
-          : {
-              ...quote,
-              status: quote.status === "invoiced" ? "approved" : "invoiced",
-              invoicePartNumber: quote.status === "invoiced" ? 1 : Math.max(1, Number(quote.invoicePartNumber || 1))
-            }
-      )
-    );
+  const deleteUnapprovedQuote = (quoteToDelete) => {
+    if (!quoteToDelete?.id) return;
+
+    const savedQuote = savedQuotes.find((quote) => quote.id === quoteToDelete.id);
+    const savedQuoteStatus = savedQuote?.status || "open";
+    if (!savedQuote || savedQuoteStatus !== "open") {
+      showNotification("Only quotes that have not been approved can be deleted.", "warning");
+      return;
+    }
+
+    const confirmed = typeof window === "undefined"
+      ? true
+      : window.confirm(`Delete "${savedQuote.projectTitle || "this quote"}"? This cannot be undone.`);
+
+    if (!confirmed) return;
+
+    setSavedQuotes((previous) => previous.filter((quote) => quote.id !== savedQuote.id));
+
+    if (editingQuoteId === savedQuote.id) {
+      setEditingQuoteId(null);
+      setLockedQuoteViewId(null);
+      startNewQuote();
+      openQuotesLanding();
+    }
+
+    showNotification("Quote deleted successfully.");
   };
 
   const incrementQuoteInvoicePart = (quoteId) => {
@@ -2134,6 +2120,7 @@ export default function ConstructionQuoteApp() {
   const activeQuoteRecord = editingQuoteId
     ? savedQuotes.find((quote) => quote.id === editingQuoteId)
     : null;
+  const isCurrentQuoteLocked = isProjectLocked(activeQuoteRecord) || Boolean(editingQuoteId && lockedQuoteViewId === editingQuoteId);
   const isCurrentQuoteApproved = activeQuoteRecord?.status === "approved";
   const currentQuoteReference = activeQuoteRecord
     ? formatQuoteReferenceNumber({
@@ -2142,7 +2129,9 @@ export default function ConstructionQuoteApp() {
         invoicePartNumber: activeQuoteRecord.invoicePartNumber || 1
       })
     : "";
-  const approvedScheduleQuotes = savedQuotes.filter((quote) => ["approved", "ongoing"].includes(quote.status));
+  const approvedScheduleQuotes = savedQuotes.filter((quote) =>
+    ["approved", "ongoing", "completed", "invoiced"].includes(quote.status)
+  );
   const selectedApprovedScheduleQuote = approvedScheduleQuotes.find(
     (quote) => quote.id === selectedScheduleQuoteId
   ) || null;
@@ -2222,15 +2211,26 @@ export default function ConstructionQuoteApp() {
       <Card dark={dark}>
         <div className="section-header">
           <div>
-            <h3>Project Info</h3>
-            <p className="row-subtitle">Use a template for repeat jobs like bathrooms, then add custom items if needed.</p>
+            <h3>{isCurrentQuoteLocked ? "Project Details" : "Project Info"}</h3>
+            <p className="row-subtitle">
+              {isCurrentQuoteLocked
+                ? "This project is complete, so it is locked for editing."
+                : "Use a template for repeat jobs like bathrooms, then add custom items if needed."}
+            </p>
             {currentQuoteReference ? (
               <div className="quote-reference-line">
                 Quote Reference: <strong>{currentQuoteReference}</strong>
               </div>
             ) : null}
           </div>
-          {!isCurrentQuoteApproved ? (
+          {isCurrentQuoteLocked && activeQuoteRecord ? (
+            <div className="button-row">
+              <Button variant="secondary" onClick={() => openApprovedQuoteSchedule(activeQuoteRecord.id)}>
+                View Schedule
+              </Button>
+            </div>
+          ) : null}
+          {!isCurrentQuoteApproved && !isCurrentQuoteLocked ? (
             <div className="button-row">
               <Button variant="secondary" onClick={markQuoteApproved}>✅ Mark Approved</Button>
             </div>
@@ -2243,6 +2243,7 @@ export default function ConstructionQuoteApp() {
             <Input
               placeholder="Project Title"
               value={projectTitle}
+              disabled={isCurrentQuoteLocked}
               onChange={(e) => setProjectTitle(e.target.value)}
             />
           </label>
@@ -2251,7 +2252,7 @@ export default function ConstructionQuoteApp() {
             <Select
               value={selectedQuoteCustomerId}
               onChange={(e) => selectQuoteCustomer(e.target.value)}
-              disabled={!savedCustomers.length && !selectedQuoteCustomerId}
+              disabled={isCurrentQuoteLocked || (!savedCustomers.length && !selectedQuoteCustomerId)}
             >
               <option value="">
                 {savedCustomers.length ? "Select saved customer" : "No saved customers yet"}
@@ -2271,6 +2272,7 @@ export default function ConstructionQuoteApp() {
             <Input
               placeholder="Project Address"
               value={projectAddress}
+              disabled={isCurrentQuoteLocked}
               onChange={(e) => setProjectAddress(e.target.value)}
             />
           </label>
@@ -2279,6 +2281,7 @@ export default function ConstructionQuoteApp() {
             <Input
               type="date"
               value={quoteDate}
+              disabled={isCurrentQuoteLocked}
               onChange={(e) => setQuoteDate(e.target.value)}
             />
           </label>
@@ -2289,6 +2292,7 @@ export default function ConstructionQuoteApp() {
               inputMode="decimal"
               placeholder="Tax %"
               value={getNumericInputValue(taxRate)}
+              disabled={isCurrentQuoteLocked}
               onChange={(e) => setTaxRate(sanitizeNumericInput(e.target.value))}
             />
           </label>
@@ -2297,6 +2301,7 @@ export default function ConstructionQuoteApp() {
             <Input
             type="date"
             value={startDate}
+            disabled={isCurrentQuoteLocked}
             onChange={(e) => setStartDate(e.target.value)}
             />
           </label>
@@ -2304,7 +2309,7 @@ export default function ConstructionQuoteApp() {
         </div>
       </Card>
 
-      {showTemplateBuilder && (
+      {showTemplateBuilder && !isCurrentQuoteLocked && (
         <Card dark={dark} className="template-builder-card">
           <div className="section-header">
             <div>
@@ -2346,162 +2351,85 @@ export default function ConstructionQuoteApp() {
         </Card>
       )}
 
-      <Card dark={dark}>
-        <div className="section-header">
-          <h3>Quote Items</h3>
-          <div className="button-row">
-            <Button variant="secondary" onClick={generateSchedule}>📅 Generate Schedule</Button>
-            <Button variant="secondary" onClick={saveQuote}>💾 Save Quote</Button>
-            <Button variant="secondary" onClick={openExportModal}>📤 Export Quote</Button>
+      {isCurrentQuoteLocked ? (
+        <Card dark={dark}>
+          <div className="section-header">
+            <div>
+              <h3>Project Items</h3>
+              <p className="row-subtitle">Completed projects are read-only.</p>
+            </div>
           </div>
-        </div>
 
-        {items.map((item, index) => {
-          const isRoomLead = index === 0 || item.roomId !== items[index - 1]?.roomId;
-
-          return (
-            <React.Fragment key={`${item.roomId || "room"}-${index}`}>
-              {isRoomLead ? (
-                <div className="room-name-row">
-                  <Input
-                    className="room-name-input"
-                    placeholder="Room name"
-                    value={item.roomName || ""}
-                    onChange={(e) => updateItem(index, "roomName", e.target.value)}
-                  />
-                  <div className="room-name-actions">
-                    <Button variant="secondary" onClick={() => saveRoomTemplate(item.roomId)}>
-                      Save Room
-                    </Button>
+          <div className="list-table">
+            {items.filter((item) => item.name?.trim()).map((item, index) => (
+              <div key={`${item.itemId || item.name}-${index}`} className="list-row">
+                <div>
+                  <div className="row-title">{item.name}</div>
+                  <div className="row-subtitle">
+                    {item.roomName || "No room"} • {item.quantity} {item.unit} • {item.category} • Markup {Number(item.markupRate || 0)}%
                   </div>
                 </div>
-              ) : null}
-
-              {isRoomLead ? (
-                <div className="quote-header-row room-section-header">
-                  <div>Item</div>
-                  <div>Qty</div>
-                  <div>Unit</div>
-                  <div>Category</div>
-                  <div>Price</div>
-                  <div>Markup</div>
-                  <div>Total</div>
-                  <div>Actions</div>
-                </div>
-              ) : null}
-
-              <div className={`quote-row advanced${isRoomLead ? " room-start" : ""}`}>
-                <div className="item-picker">
-                  <Input
-                    list={`price-list-options-${index}`}
-                    placeholder="Select saved item or type a new one"
-                    value={item.name}
-                    onFocus={() => {
-                      if (shouldShowSaveItemButton(item, index)) {
-                        dismissSaveItemPrompt(item);
-                      }
-                      setActiveQuoteItemIndex(index);
-                    }}
-                    onBlur={() => {
-                      setActiveQuoteItemIndex((previous) => (previous === index ? null : previous));
-                    }}
-                    onChange={(e) => {
-                      const nextName = e.target.value;
-                      updateItem(index, "name", nextName);
-                      if (isSavedPriceListItem(nextName)) {
-                        selectPriceItem(index, nextName);
-                      }
-                    }}
-                  />
-                  <datalist id={`price-list-options-${index}`}>
-                    {priceList.map((priceItem, priceIndex) => (
-                      <option key={`${priceItem.name}-${priceIndex}`} value={priceItem.name} />
-                    ))}
-                  </datalist>
-                </div>
-
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={getNumericInputValue(item.quantity)}
-                  onChange={(e) => updateItem(index, "quantity", e.target.value)}
-                />
-
-                <Select value={item.unit} onChange={(e) => updateItem(index, "unit", e.target.value)}>
-                  {UNIT_OPTIONS.map((unitOption) => (
-                    <option key={unitOption.value} value={unitOption.value}>{unitOption.label}</option>
-                  ))}
-                </Select>
-
-                <Select value={item.category} onChange={(e) => updateItem(index, "category", e.target.value)}>
-                  <option value="Labor">Labor</option>
-                  <option value="Material">Material</option>
-                  <option value="Equipment">Equipment</option>
-                </Select>
-
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="$0.00"
-                  value={getNumericInputValue(item.pricePerUnit, { hideZero: true })}
-                  onChange={(e) => updateItem(index, "pricePerUnit", e.target.value)}
-                />
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="Markup %"
-                  value={getNumericInputValue(item.markupRate)}
-                  onChange={(e) => updateItem(index, "markupRate", e.target.value)}
-                />
-                <div className="money-cell">{formatMoney(getItemTotal(item))}</div>
-
-                <div className="button-stack compact">
-                  {shouldShowSaveItemButton(item, index) ? (
-                    <Button variant="secondary" onClick={() => saveToPriceList(item)}>Save Item</Button>
-                  ) : null}
-                  <Button variant="danger" onClick={() => removeItem(index)}>Delete</Button>
-                </div>
+                <div>{formatMoney(getItemTotal(item))}</div>
               </div>
-            </React.Fragment>
-          );
-        })}
-
-        <div className="quote-items-footer">
-          <div className="button-row">
-            <Button onClick={addItem}>Add Item</Button>
-            <Button variant="secondary" onClick={addRoom}>Add Another Room</Button>
+            ))}
           </div>
-          <div className="button-stack compact quote-template-actions">
-            <Button variant="secondary" onClick={saveQuote}>💾 Save Quote</Button>
-          </div>
-        </div>
-      </Card>
 
-      <Card dark={dark}>
-        <div className="section-header">
-          <div>
-            <h3>Room Templates</h3>
-            <p className="row-subtitle">Use the built-in templates or any saved room templates below to autofill the current quote.</p>
-          </div>
-        </div>
+          {items.filter((item) => item.name?.trim()).length === 0 ? (
+            <p className="row-subtitle">No project items were saved.</p>
+          ) : null}
+        </Card>
+      ) : (
+        <>
+          <QuoteItemsTable
+            dark={dark}
+            items={items}
+            priceList={priceList}
+            projectTemplates={[]}
+            onAddItem={addItem}
+            onAddRoom={addRoom}
+            onOpenTemplateBuilder={openTemplateBuilder}
+            onGenerateSchedule={generateSchedule}
+            onSaveQuote={saveQuote}
+            onExportQuote={openExportModal}
+            onUpdateItem={updateItem}
+            onSelectPriceItem={selectPriceItem}
+            isSavedPriceListItem={isSavedPriceListItem}
+            activeQuoteItemIndex={activeQuoteItemIndex}
+            onSetActiveQuoteItemIndex={setActiveQuoteItemIndex}
+            onSaveToPriceList={saveToPriceList}
+            shouldShowSaveItemButton={shouldShowSaveItemButton}
+            onDismissSaveItemPrompt={dismissSaveItemPrompt}
+            onSaveRoomTemplate={saveRoomTemplate}
+            onRemoveItem={removeItem}
+          />
 
-        <div className="template-button-grid">
-          {savedRoomTemplates.map((template) => (
-            <button
-              key={template.id}
-              type="button"
-              className={`template-button-card${dark ? " dark" : ""}`}
-              onClick={() => applySavedRoomTemplate(template.id)}
-            >
-              <span className="template-button-title">{template.name}</span>
-            </button>
-          ))}
-        </div>
+          <Card dark={dark}>
+            <div className="section-header">
+              <div>
+                <h3>Room Templates</h3>
+                <p className="row-subtitle">Use the built-in templates or any saved room templates below to autofill the current quote.</p>
+              </div>
+            </div>
 
-        {savedRoomTemplates.length === 0 ? (
-          <p className="row-subtitle room-template-empty-note">Save a room above and it will appear here as a reusable template button.</p>
-        ) : null}
-      </Card>
+            <div className="template-button-grid">
+              {savedRoomTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className={`template-button-card${dark ? " dark" : ""}`}
+                  onClick={() => applySavedRoomTemplate(template.id)}
+                >
+                  <span className="template-button-title">{template.name}</span>
+                </button>
+              ))}
+            </div>
+
+            {savedRoomTemplates.length === 0 ? (
+              <p className="row-subtitle room-template-empty-note">Save a room above and it will appear here as a reusable template button.</p>
+            ) : null}
+          </Card>
+        </>
+      )}
 
       <Card dark={dark}>
         <h3>Quote Totals</h3>
@@ -2517,10 +2445,16 @@ export default function ConstructionQuoteApp() {
         <div className="section-header quote-actions-header">
           <div>
             <h3>Ready To Save Or Export?</h3>
-            <p className="row-subtitle">Save this quote to keep it in the app, or export it as a file to share with your customer.</p>
+            <p className="row-subtitle">
+              {isCurrentQuoteLocked
+                ? "This completed project can be exported, but it cannot be edited."
+                : "Save this quote to keep it in the app, or export it as a file to share with your customer."}
+            </p>
           </div>
           <div className="button-row">
-            <Button variant="secondary" onClick={saveQuote}>💾 Save Quote</Button>
+            {!isCurrentQuoteLocked ? (
+              <Button variant="secondary" onClick={saveQuote}>💾 Save Quote</Button>
+            ) : null}
             <Button variant="secondary" onClick={openExportModal}>📤 Export Quote</Button>
           </div>
         </div>
@@ -2901,263 +2835,25 @@ export default function ConstructionQuoteApp() {
     </>
   );
 
-  const renderContractor = () => {
-    const contractorFormFields = (
-      <>
-        <div className="grid three-col">
-          <label>
-            Company Name
-            <Input
-              placeholder="Company Name"
-              value={contractorDraft.companyName}
-              onChange={(e) => updateContractorProfile("companyName", e.target.value)}
-            />
-          </label>
-          <label>
-            Contact Name
-            <Input
-              placeholder="Contact Name"
-              value={contractorDraft.contactName}
-              onChange={(e) => updateContractorProfile("contactName", e.target.value)}
-            />
-          </label>
-          <label>
-            Trade
-            <Input
-              placeholder="Trade"
-              value={contractorDraft.trade}
-              onChange={(e) => updateContractorProfile("trade", e.target.value)}
-            />
-          </label>
-          <label>
-            Phone
-            <Input
-              placeholder="Phone"
-              value={contractorDraft.phone}
-              onChange={(e) => updateContractorProfile("phone", e.target.value)}
-            />
-          </label>
-          <label>
-            Email
-            <Input
-              placeholder="Email"
-              value={contractorDraft.email}
-              onChange={(e) => updateContractorProfile("email", e.target.value)}
-            />
-          </label>
-          <div className="grid span-two customer-address-row">
-            <label>
-              Address
-              <Input
-                placeholder="Business Address"
-                value={contractorDraft.address}
-                onChange={(e) => updateContractorProfile("address", e.target.value)}
-              />
-            </label>
-            <label>
-              Unit Number
-              <Input
-                placeholder="Unit Number"
-                value={contractorDraft.unitNumber}
-                onChange={(e) => updateContractorProfile("unitNumber", e.target.value)}
-              />
-            </label>
-          </div>
-          <label>
-            City
-            <Input
-              placeholder="City"
-              value={contractorDraft.city}
-              onChange={(e) => updateContractorProfile("city", e.target.value)}
-            />
-          </label>
-          <label>
-            Province
-            <Input
-              placeholder="Province"
-              value={contractorDraft.province}
-              onChange={(e) => updateContractorProfile("province", e.target.value)}
-            />
-          </label>
-          <label>
-            Post Code
-            <Input
-              placeholder="Post Code"
-              value={contractorDraft.postalCode}
-              onChange={(e) => updateContractorProfile("postalCode", e.target.value)}
-            />
-          </label>
-        </div>
-
-        {showContractorNotes ? (
-          <div className="customer-notes-section">
-            <label className="customer-notes-label">
-              Contractor Notes
-              <textarea
-                className="input customer-notes-input"
-                placeholder="Add contractor notes"
-                value={contractorDraft.notes}
-                onChange={(e) => updateContractorProfile("notes", e.target.value)}
-              />
-            </label>
-          </div>
-        ) : null}
-      </>
-    );
-
-    const contractorEditorActions = (
-      <div className="button-row customer-action-row">
-        <Button onClick={saveContractorProfile}>Save Contractor</Button>
-        <Button variant="secondary" onClick={cancelContractorEditing}>Cancel</Button>
-      </div>
-    );
-
-    const contractorEditor = isEditingContractor && !selectedContractorId ? (
-      <Card dark={dark}>
-        <div className="section-header">
-          <div>
-            <h3>{contractorDraft.id ? `Edit ${getContractorDisplayName(contractorDraft)}` : "New Contractor"}</h3>
-            <p className="row-subtitle">
-              Update the contractor details, then save the record to keep it in your contractor directory.
-            </p>
-          </div>
-          <div className="button-row">
-            <Button variant="secondary" onClick={() => setShowContractorNotes((previous) => !previous)}>
-              {showContractorNotes ? "Hide Notes" : "Notes"}
-            </Button>
-          </div>
-        </div>
-
-        {contractorFormFields}
-        {contractorEditorActions}
-      </Card>
-    ) : null;
-
-    return (
-      <>
-        {contractorEditor}
-
-        <Card dark={dark}>
-          <div className="section-header">
-            <div>
-              <h3>Contractor CRM</h3>
-              <p className="row-subtitle">
-                Keep a list of saved contractors, open any record to review it, and add new contractors as your directory grows.
-              </p>
-            </div>
-            <div className="button-row">
-              <Button onClick={startNewContractor}>New Contractor</Button>
-              <Button variant="secondary" onClick={openQuotesLanding}>Go To Quotes</Button>
-            </div>
-          </div>
-
-          {savedContractors.length === 0 ? (
-            <div className="quotes-empty-state">
-              <p>No saved contractors yet.</p>
-              <Button onClick={startNewContractor}>Add First Contractor</Button>
-            </div>
-          ) : (
-            <div className="list-table">
-              {savedContractors.map((contractor) => (
-                <div
-                  key={contractor.id}
-                  className={[
-                    "list-row",
-                    "contractor-directory-row",
-                    selectedContractorId === contractor.id && !isEditingContractor ? "active" : ""
-                  ].filter(Boolean).join(" ")}
-                >
-                  <div className="contractor-directory-summary">
-                    <button
-                      type="button"
-                      className="contractor-directory-trigger"
-                      onClick={() => selectContractor(contractor)}
-                    >
-                      <div className="directory-title-row">
-                        <span className="row-title">{getContractorDisplayName(contractor)}</span>
-                        <span className={`status-pill ${contractor.status === "inactive" ? "inactive" : "active"}`}>
-                          {contractor.status === "inactive" ? "Inactive" : "Active"}
-                        </span>
-                      </div>
-                      <div className="row-subtitle">
-                        {contractor.trade || contractor.contactName || "No trade"} • {contractor.email || contractor.phone || "No contact info"} • Last job: {contractor.lastAssignedJobDate || "None"}
-                      </div>
-                    </button>
-                    <div className="button-row">
-                      <Button
-                        variant="secondary"
-                        onClick={() => startEditingContractor(contractor)}
-                      >
-                        Edit
-                      </Button>
-                    </div>
-                  </div>
-
-                  {selectedContractorId === contractor.id && isEditingContractor ? (
-                    <div className="contractor-directory-expanded contractor-inline-editor">
-                      <div className="section-header contractor-inline-editor-header">
-                        <div>
-                          <h3>{`Edit ${getContractorDisplayName(contractorDraft)}`}</h3>
-                          <p className="row-subtitle">
-                            Update the contractor details below and save when you're done.
-                          </p>
-                        </div>
-                        <div className="button-row">
-                          <Button variant="secondary" onClick={() => setShowContractorNotes((previous) => !previous)}>
-                            {showContractorNotes ? "Hide Notes" : "Notes"}
-                          </Button>
-                        </div>
-                      </div>
-                      {contractorFormFields}
-                      {contractorEditorActions}
-                    </div>
-                  ) : null}
-
-                  {selectedContractorId === contractor.id && !isEditingContractor ? (
-                    <div className="contractor-directory-expanded">
-                      <div className="details-list">
-                        <div><strong>Company:</strong> {contractor.companyName || "Not set"}</div>
-                        <div><strong>Contact:</strong> {contractor.contactName || "Not set"}</div>
-                        <div><strong>Trade:</strong> {contractor.trade || "Not set"}</div>
-                        <div><strong>Status:</strong> {contractor.status === "inactive" ? "Inactive" : "Active"}</div>
-                        <div><strong>Auto-Expiry:</strong> {contractorExpirySettings.enabled ? getContractorExpiryLabel(contractorExpirySettings) : "Off"}</div>
-                        <div><strong>Last Assigned Job:</strong> {contractor.lastAssignedJobDate || "Not set"}</div>
-                        <div><strong>Inactive Date:</strong> {getContractorInactiveAfterDate(contractor, contractorExpirySettings) || "Not set"}</div>
-                        <div><strong>Phone:</strong> {contractor.phone || "Not set"}</div>
-                        <div><strong>Email:</strong> {contractor.email || "Not set"}</div>
-                        <div><strong>Address:</strong> {getProfileAddressDisplay(contractor) || contractor.address || "Not set"}</div>
-                        <div><strong>Unit Number:</strong> {contractor.unitNumber || "Not set"}</div>
-                        <div><strong>City:</strong> {contractor.city || "Not set"}</div>
-                        <div><strong>Province:</strong> {contractor.province || "Not set"}</div>
-                        <div><strong>Post Code:</strong> {contractor.postalCode || "Not set"}</div>
-                      </div>
-
-                      <div className="button-row customer-action-row">
-                        <Button variant="secondary" onClick={() => setShowContractorNotes((previous) => !previous)}>
-                          {showContractorNotes ? "Hide Notes" : "Notes"}
-                        </Button>
-                        <Button variant="secondary" onClick={() => startEditingContractor(contractor)}>
-                          Edit {getContractorDisplayName(contractor)}
-                        </Button>
-                      </div>
-
-                      {showContractorNotes ? (
-                        <div className="customer-notes-display">
-                          <h4>Contractor Notes</h4>
-                          <p>{contractor.notes?.trim() || "No notes saved yet."}</p>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-      </>
-    );
-  };
+  const renderContractor = () => (
+    <ContractorPage
+      dark={dark}
+      savedContractors={savedContractors}
+      contractorDraft={contractorDraft}
+      selectedContractorId={selectedContractorId}
+      isEditingContractor={isEditingContractor}
+      showContractorNotes={showContractorNotes}
+      contractorExpirySettings={contractorExpirySettings}
+      onUpdateContractorProfile={updateContractorProfile}
+      onSaveContractor={saveContractorProfile}
+      onCancelContractorEditing={cancelContractorEditing}
+      onSelectContractor={selectContractor}
+      onStartNewContractor={startNewContractor}
+      onStartEditingContractor={startEditingContractor}
+      onToggleContractorNotes={() => setShowContractorNotes((previous) => !previous)}
+      onOpenQuotes={openQuotesLanding}
+    />
+  );
 
   const renderCustomer = () => (
     <CustomerPage
@@ -3204,7 +2900,7 @@ export default function ConstructionQuoteApp() {
                 type="checkbox"
                 checked={contractorExpirySettings.enabled}
                 onChange={(event) =>
-                  setContractorExpirySettings((previous) =>
+                  updateContractorExpirySettings((previous) =>
                     getContractorExpirySettings({
                       ...previous,
                       enabled: event.target.checked
@@ -3221,7 +2917,7 @@ export default function ConstructionQuoteApp() {
                   <Select
                     value={contractorExpirySettings.amount}
                     onChange={(event) =>
-                      setContractorExpirySettings((previous) =>
+                      updateContractorExpirySettings((previous) =>
                         getContractorExpirySettings({
                           ...previous,
                           amount: Number(event.target.value)
@@ -3239,7 +2935,7 @@ export default function ConstructionQuoteApp() {
                   <Select
                     value={contractorExpirySettings.unit}
                     onChange={(event) =>
-                      setContractorExpirySettings((previous) =>
+                      updateContractorExpirySettings((previous) =>
                         getContractorExpirySettings({
                           ...previous,
                           unit: event.target.value
@@ -3356,6 +3052,7 @@ export default function ConstructionQuoteApp() {
             {currentPage === "customer" && renderCustomer()}
             {currentPage === "quotes" && quotesView === "landing" && (
               <QuotesLandingPage
+                key={`${quotesCustomerFilter?.id || quotesCustomerFilter?.label || "all"}:${quotesInitialProjectList || "approved"}`}
                 dark={dark}
                 savedQuotes={savedQuotes}
                 customerFilter={quotesCustomerFilter}
@@ -3366,8 +3063,9 @@ export default function ConstructionQuoteApp() {
                 }}
                 onNewQuote={startNewQuote}
                 onOpenQuote={loadQuote}
+                onOpenQuoteSchedule={(quote) => openApprovedQuoteSchedule(quote.id)}
                 onToggleQuoteApproval={toggleQuoteApproval}
-                onToggleQuoteInvoiced={toggleQuoteInvoiced}
+                onDeleteQuote={deleteUnapprovedQuote}
                 onIncrementQuoteInvoicePart={incrementQuoteInvoicePart}
                 onSetQuoteProjectStatus={setQuoteProjectStatus}
               />
@@ -3379,6 +3077,19 @@ export default function ConstructionQuoteApp() {
           </MotionDiv>
         </main>
       </div>
+      {notification ? (
+        <div className={`app-notification ${notification.variant}`} role="status" aria-live="polite">
+          <span>{notification.message}</span>
+          <button
+            type="button"
+            className="app-notification-close"
+            aria-label="Dismiss notification"
+            onClick={() => setNotification(null)}
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
     </>
   );
 }

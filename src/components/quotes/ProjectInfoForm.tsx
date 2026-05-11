@@ -44,6 +44,17 @@ export default function ProjectInfoForm({
 }: ProjectInfoFormProps) {
   const getCustomerDisplayName = (customer: CustomerProfile) =>
     customer.customerName || customer.companyName || "Customer";
+  const handleInputChange =
+    (setter: (value: string) => void) =>
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setter(event.target.value);
+    };
+  const handleCustomerChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    onSelectQuoteCustomer(event.target.value);
+  };
+  const handleTaxRateChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    onSetTaxRate(Number(sanitizeNumericInput(event.target.value) || 0));
+  };
 
   return (
     <Card dark={dark}>
@@ -67,7 +78,7 @@ export default function ProjectInfoForm({
           <Input
             placeholder="Project Title"
             value={projectTitle}
-            onChange={(e) => onSetProjectTitle(e.target.value)}
+            onChange={handleInputChange(onSetProjectTitle)}
           />
         </label>
 
@@ -75,7 +86,7 @@ export default function ProjectInfoForm({
           Customer
           <Select
             value={selectedQuoteCustomerId}
-            onChange={(e) => onSelectQuoteCustomer(e.target.value)}
+            onChange={handleCustomerChange}
             disabled={!savedCustomers.length && !selectedQuoteCustomerId}
           >
             <option value="">
@@ -97,7 +108,7 @@ export default function ProjectInfoForm({
           <Input
             placeholder="Project Address"
             value={projectAddress}
-            onChange={(e) => onSetProjectAddress(e.target.value)}
+            onChange={handleInputChange(onSetProjectAddress)}
           />
         </label>
 
@@ -106,7 +117,7 @@ export default function ProjectInfoForm({
           <Input
             type="date"
             value={quoteDate}
-            onChange={(e) => onSetQuoteDate(e.target.value)}
+            onChange={handleInputChange(onSetQuoteDate)}
           />
         </label>
 
@@ -117,7 +128,7 @@ export default function ProjectInfoForm({
             inputMode="decimal"
             placeholder="Tax %"
             value={getNumericInputValue(taxRate)}
-            onChange={(e) => onSetTaxRate(Number(sanitizeNumericInput(e.target.value) || 0))}
+            onChange={handleTaxRateChange}
           />
         </label>
 
@@ -126,7 +137,7 @@ export default function ProjectInfoForm({
           <Input
             type="date"
             value={startDate}
-            onChange={(e) => onSetStartDate(e.target.value)}
+            onChange={handleInputChange(onSetStartDate)}
           />
         </label>
       </div>

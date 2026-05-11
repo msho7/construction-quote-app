@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 import { Card, Button, Input, Select } from "../ui";
 import {
   formatDateForInput,
@@ -110,12 +110,13 @@ export default function QuotesLandingPage({
   onClearCustomerFilter,
   onNewQuote,
   onOpenQuote,
+  onOpenQuoteSchedule,
   onToggleQuoteApproval,
-  onToggleQuoteInvoiced,
+  onDeleteQuote,
   onIncrementQuoteInvoicePart,
   onSetQuoteProjectStatus
 }) {
-  const [selectedProjectList, setSelectedProjectList] = useState("approved");
+  const [selectedProjectList, setSelectedProjectList] = useState(() => initialProjectList || "approved");
   const [customerSearchTerm, setCustomerSearchTerm] = useState("");
   const customerScopedQuotes = customerFilter
     ? savedQuotes.filter((quote) => {
@@ -156,21 +157,13 @@ export default function QuotesLandingPage({
   const quoteTotal = filteredQuotes.reduce((sum, quote) => sum + Number(quote.totals?.total || 0), 0);
   const quoteAverage = filteredQuotes.length ? quoteTotal / filteredQuotes.length : 0;
 
-  useEffect(() => {
-    if (!initialProjectList) return;
-    setSelectedProjectList(initialProjectList);
-  }, [initialProjectList]);
-
-  const projectLists = useMemo(
-    () => ({
-      all: activeQuotes,
-      approved: approvedProjects,
-      waiting: waitingProjects,
-      ongoing: ongoingProjects,
-      completed: completedProjects
-    }),
-    [activeQuotes, approvedProjects, waitingProjects, ongoingProjects, completedProjects]
-  );
+  const projectLists = {
+    all: activeQuotes,
+    approved: approvedProjects,
+    waiting: waitingProjects,
+    ongoing: ongoingProjects,
+    completed: completedProjects
+  };
   const selectedListConfig =
     PROJECT_LIST_OPTIONS.find((option) => option.value === selectedProjectList) ||
     PROJECT_LIST_OPTIONS[0];
@@ -181,7 +174,20 @@ export default function QuotesLandingPage({
       return (
         <>
           <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
-            Open Quote
+            Edit Quote
+          </Button>
+          <Button variant="secondary" onClick={() => onToggleQuoteApproval(quote.id)}>
+            Mark In Progress
+          </Button>
+        </>
+      );
+    }
+
+    if (status === "approved") {
+      return (
+        <>
+          <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
+            Edit Quote
           </Button>
           <Button variant="secondary" onClick={() => onToggleQuoteApproval(quote.id)}>
             Mark In Progress
@@ -194,7 +200,7 @@ export default function QuotesLandingPage({
       return (
         <>
           <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
-            Open Quote
+            Edit Quote
           </Button>
           <Button variant="secondary" onClick={() => onSetQuoteProjectStatus?.(quote.id, "completed")}>
             Mark Completed
@@ -207,30 +213,17 @@ export default function QuotesLandingPage({
     }
 
     if (status === "completed" || status === "invoiced") {
-      const isAutoCompletedProject = status === "completed" && quote.status !== "completed";
-
       return (
         <>
-          <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
-            Open Quote
+          <Button variant="secondary" onClick={() => onOpenQuote(quote, { readOnly: true })}>
+            View Project
           </Button>
-          {isAutoCompletedProject ? (
-            <Button variant="secondary" onClick={() => onSetQuoteProjectStatus?.(quote.id, "completed")}>
-              Mark Completed
-            </Button>
-          ) : null}
+          <Button variant="secondary" onClick={() => onOpenQuoteSchedule?.(quote)}>
+            View Schedule
+          </Button>
           {status === "invoiced" ? (
             <Button variant="secondary" onClick={() => onIncrementQuoteInvoicePart(quote.id)}>
               Add Payment Part
-            </Button>
-          ) : (
-            <Button variant="secondary" onClick={() => onToggleQuoteInvoiced(quote.id)}>
-              Mark Invoiced
-            </Button>
-          )}
-          {!isAutoCompletedProject ? (
-            <Button variant="secondary" onClick={() => onSetQuoteProjectStatus?.(quote.id, "ongoing")}>
-              Mark Ongoing
             </Button>
           ) : null}
         </>
@@ -240,7 +233,7 @@ export default function QuotesLandingPage({
     return (
       <>
         <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
-          Open Quote
+          Edit Quote
         </Button>
         <Button variant="secondary" onClick={() => onToggleQuoteApproval(quote.id)}>
           Mark In Progress
@@ -251,12 +244,17 @@ export default function QuotesLandingPage({
 
   const renderProjectRow = (quote) => {
     const status = getQuoteWorkflowState(quote);
+    const openQuoteFromTitle = () => {
+      onOpenQuote(quote, { readOnly: status === "completed" || status === "invoiced" });
+    };
 
     return (
       <div key={quote.id} className="list-row quote-overview-row">
         <div className="quote-overview-main">
           <div className="quote-overview-heading">
-            <div className="row-title">{quote.projectTitle}</div>
+            <button type="button" className="quote-title-button" onClick={openQuoteFromTitle}>
+              {quote.projectTitle}
+            </button>
             <span className={`status-pill ${status}`}>{getStatusLabel(status)}</span>
           </div>
           <div className="row-subtitle">
@@ -351,7 +349,9 @@ export default function QuotesLandingPage({
               <div key={quote.id} className="list-row quote-overview-row">
                 <div className="quote-overview-main">
                   <div className="quote-overview-heading">
-                    <div className="row-title">{quote.projectTitle}</div>
+                    <button type="button" className="quote-title-button" onClick={() => onOpenQuote(quote)}>
+                      {quote.projectTitle}
+                    </button>
                     <span className="status-pill open">Open</span>
                   </div>
                   <div className="row-subtitle">
@@ -372,6 +372,12 @@ export default function QuotesLandingPage({
                       onClick={() => onToggleQuoteApproval(quote.id)}
                     >
                       Mark Approved
+                    </Button>
+                    <Button
+                      variant="danger"
+                      onClick={() => onDeleteQuote?.(quote)}
+                    >
+                      Delete
                     </Button>
                   </div>
                 </div>
