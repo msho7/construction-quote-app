@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { APP_STYLES } from "./styles";
 import { useDarkMode } from "./hooks/useDarkMode";
@@ -32,10 +32,11 @@ import { exportQuoteToExcel, exportQuoteToPdf } from "./utils/exportUtils";
 import { Card, Button, Input, Select } from "./components/ui";
 import AnalysisPage from "./components/analysis/AnalysisPage";
 import CustomerPage from "./components/customer/CustomerPage";
-import ContractorPage from "./components/contractor/ContractorPage";
 import QuoteItemsTable from "./components/quotes/QuoteItemsTable";
 import QuotesLandingPage from "./components/quotes/QuotesLandingPage";
 import SchedulePage from "./components/schedule/SchedulePage";
+
+const ContractorPage = lazy(() => import("./components/contractor/ContractorPage"));
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 const createRoomId = () => `room-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -43,6 +44,7 @@ const createItemId = () => `item-${Date.now()}-${Math.random().toString(36).slic
 const createRoomTemplateId = () => `room-template-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const createContractorId = () => `contractor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const createCustomerId = () => `customer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const createQuoteId = () => Number(`${Date.now()}${Math.floor(Math.random() * 1000)}`);
 const getNormalizedText = (value) => String(value || "").trim().toLowerCase();
 const getNormalizedItemName = (name) => getNormalizedText(name);
 const DEFAULT_CONTRACTOR_EXPIRY_SETTINGS = {
@@ -51,6 +53,7 @@ const DEFAULT_CONTRACTOR_EXPIRY_SETTINGS = {
   unit: "months"
 };
 const EMPTY_CONTRACTOR_PROFILE = {
+  companyType: "",
   companyName: "",
   contactName: "",
   trade: "",
@@ -80,6 +83,7 @@ const EMPTY_CUSTOMER_PROFILE = {
   notes: ""
 };
 const CONTRACTOR_PROFILE_FIELDS = [
+  "companyType",
   "companyName",
   "contactName",
   "trade",
@@ -183,6 +187,128 @@ const getCustomerDisplayName = (profile = EMPTY_CUSTOMER_PROFILE) =>
   String(profile?.companyName || "").trim() ||
   "Customer";
 const isProjectLocked = (quote = {}) => ["completed", "invoiced"].includes(quote?.status);
+const getContractorDisplayName = (profile = EMPTY_CONTRACTOR_PROFILE) =>
+  String(profile?.companyName || "").trim() ||
+  String(profile?.contactName || "").trim() ||
+  "Contractor";
+const TASK_TRADE_MATCHERS = [
+  { trade: "Demolition", keywords: ["demo", "demolition", "remove", "tear out", "tearout"] },
+  { trade: "Electrical", keywords: ["electrical", "electric", "wire", "wiring", "outlet", "light", "lighting", "panel"] },
+  { trade: "Plumbing", keywords: ["plumbing", "plumber", "pipe", "drain", "water", "toilet", "sink", "faucet", "shower", "tub"] },
+  { trade: "HVAC", keywords: ["hvac", "duct", "vent", "furnace", "air conditioning", "ac"] },
+  { trade: "Framing", keywords: ["framing", "frame", "stud", "structure"] },
+  { trade: "Drywall", keywords: ["drywall", "board", "tape", "mud", "compound"] },
+  { trade: "Painting", keywords: ["paint", "painting", "primer", "prime"] },
+  { trade: "Flooring", keywords: ["floor", "flooring", "tile", "vinyl", "hardwood", "laminate"] },
+  { trade: "Carpentry", keywords: ["carpentry", "carpenter", "trim", "baseboard", "door", "cabinet", "millwork"] },
+  { trade: "Masonry", keywords: ["masonry", "brick", "block", "concrete", "cement"] },
+  { trade: "Roofing", keywords: ["roof", "roofing", "shingle"] },
+  { trade: "Delivery", keywords: ["delivery", "deliver", "pickup", "dump", "bin"] },
+  { trade: "General Labour", keywords: ["labour", "labor", "clean", "cleanup", "prep", "general"] }
+];
+const getTaskSearchText = (task = {}) =>
+  [task.name, task.category, task.roomName, task.unit].map((value) => String(value || "").toLowerCase()).join(" ");
+const getSuggestedTradeForTask = (task = {}) => {
+  const taskText = getTaskSearchText(task);
+  const match = TASK_TRADE_MATCHERS.find(({ keywords }) =>
+    keywords.some((keyword) => taskText.includes(keyword))
+  );
+
+  return match?.trade || String(task.category || "").trim() || "";
+};
+const getContractorTradeList = (contractor = {}) =>
+  String(contractor.trade || "")
+    .split(/[,/|&]+|\band\b/i)
+    .map((trade) => trade.trim())
+    .filter(Boolean);
+const getContractorTradeSearchText = (contractor = {}) =>
+  [
+    ...getContractorTradeList(contractor),
+    contractor.companyName,
+    contractor.contactName
+  ].map((value) => String(value || "").toLowerCase()).join(" ");
+const canContractorDoTrade = (contractor = {}, suggestedTrade = "") => {
+  const suggestedTradeText = String(suggestedTrade || "").toLowerCase();
+  if (!suggestedTradeText || contractor.status === "inactive") return false;
+
+  const contractorText = getContractorTradeSearchText(contractor);
+  return Boolean(
+    contractorText.includes(suggestedTradeText) ||
+    TASK_TRADE_MATCHERS.some(({ trade, keywords }) =>
+      trade.toLowerCase() === suggestedTradeText &&
+      keywords.some((keyword) => contractorText.includes(keyword))
+    )
+  );
+};
+const assignContractorsToSchedule = (scheduleItems = [], contractors = []) => {
+  const activeContractors = contractors.filter((contractor) => contractor.status !== "inactive");
+  const assignmentCounts = new Map();
+
+  return normalizeScheduleItems(scheduleItems).map((task) => {
+    const suggestedTrade = getSuggestedTradeForTask(task);
+    const existingAssignedContractor = activeContractors.find((contractor) => contractor.id && contractor.id === task.assignedContractorId);
+    if (existingAssignedContractor) {
+      assignmentCounts.set(
+        existingAssignedContractor.id,
+        (assignmentCounts.get(existingAssignedContractor.id) || 0) + 1
+      );
+
+      return {
+        ...task,
+        suggestedTrade,
+        assignedContractorId: existingAssignedContractor.id || "",
+        assignedContractorName: getContractorDisplayName(existingAssignedContractor),
+        assignedContractorTrade: existingAssignedContractor.trade || suggestedTrade
+      };
+    }
+
+    const matchingContractors = activeContractors.filter((contractor) => canContractorDoTrade(contractor, suggestedTrade));
+    const assignedContractor = matchingContractors
+      .slice()
+      .sort((contractorA, contractorB) => {
+        const contractorAAssignments = assignmentCounts.get(contractorA.id) || 0;
+        const contractorBAssignments = assignmentCounts.get(contractorB.id) || 0;
+        if (contractorAAssignments !== contractorBAssignments) {
+          return contractorBAssignments - contractorAAssignments;
+        }
+
+        return getContractorDisplayName(contractorA).localeCompare(getContractorDisplayName(contractorB));
+      })[0];
+
+    if (assignedContractor?.id) {
+      assignmentCounts.set(assignedContractor.id, (assignmentCounts.get(assignedContractor.id) || 0) + 1);
+    }
+
+    return {
+      ...task,
+      suggestedTrade,
+      assignedContractorId: assignedContractor?.id || "",
+      assignedContractorName: assignedContractor ? getContractorDisplayName(assignedContractor) : "",
+      assignedContractorTrade: assignedContractor?.trade || suggestedTrade
+    };
+  });
+};
+const getScheduleTaskWithContractor = (task = {}, contractor = null) => {
+  const suggestedTrade = task.suggestedTrade || getSuggestedTradeForTask(task);
+
+  if (!contractor) {
+    return {
+      ...task,
+      suggestedTrade,
+      assignedContractorId: "",
+      assignedContractorName: "",
+      assignedContractorTrade: suggestedTrade
+    };
+  }
+
+  return {
+    ...task,
+    suggestedTrade,
+    assignedContractorId: contractor.id || "",
+    assignedContractorName: getContractorDisplayName(contractor),
+    assignedContractorTrade: contractor.trade || suggestedTrade
+  };
+};
 const getProfileAddressDisplay = (profile = {}) => {
   const unitNumber = String(profile?.unitNumber || "").trim();
   const streetAddress = String(profile?.address || "").trim();
@@ -713,7 +839,6 @@ export default function ConstructionQuoteApp() {
     }
 
     setNotification({
-      id: Date.now(),
       message,
       variant
     });
@@ -1547,9 +1672,12 @@ export default function ConstructionQuoteApp() {
       return;
     }
 
-    const regeneratedSchedule = preserveScheduleCompletionState(
-      buildScheduleFromItems(savedQuote.items || [], savedQuote.startDate),
-      savedQuote.schedule || []
+    const regeneratedSchedule = assignContractorsToSchedule(
+      preserveScheduleCompletionState(
+        buildScheduleFromItems(savedQuote.items || [], savedQuote.startDate),
+        savedQuote.schedule || []
+      ),
+      savedContractors
     );
 
     setSavedQuotes((previous) =>
@@ -1644,6 +1772,70 @@ export default function ConstructionQuoteApp() {
             }
       )
     );
+  };
+
+  const addTradeToContractorIfNeeded = (contractorId, trade) => {
+    const normalizedTrade = String(trade || "").trim();
+    if (!contractorId || !normalizedTrade) return;
+
+    setSavedContractors((previous) =>
+      previous.map((contractor) => {
+        if (contractor.id !== contractorId) return contractor;
+
+        const tradeList = getContractorTradeList(contractor);
+        const alreadyHasTrade = tradeList.some((contractorTrade) =>
+          contractorTrade.toLowerCase() === normalizedTrade.toLowerCase()
+        );
+
+        if (alreadyHasTrade) return contractor;
+
+        return normalizeContractorProfile({
+          ...contractor,
+          trade: [...tradeList, normalizedTrade].join(", ")
+        }, contractorExpirySettings);
+      })
+    );
+  };
+
+  const assignDraftScheduleTaskContractor = (taskIndex, contractorId) => {
+    const selectedContractor = savedContractors.find((contractor) => contractor.id === contractorId) || null;
+    let taskTrade = "";
+
+    setSchedule((previous) =>
+      normalizeScheduleItems(
+        previous.map((task, index) => {
+          if (index !== taskIndex) return task;
+          taskTrade = task.suggestedTrade || getSuggestedTradeForTask(task);
+          return getScheduleTaskWithContractor(task, selectedContractor);
+        })
+      )
+    );
+
+    addTradeToContractorIfNeeded(contractorId, taskTrade);
+  };
+
+  const assignSavedQuoteScheduleTaskContractor = (quoteId, taskIndex, contractorId) => {
+    const selectedContractor = savedContractors.find((contractor) => contractor.id === contractorId) || null;
+    let taskTrade = "";
+
+    setSavedQuotes((previous) =>
+      previous.map((quote) => {
+        if (quote.id !== quoteId) return quote;
+
+        return {
+          ...quote,
+          schedule: normalizeScheduleItems(
+            (quote.schedule || []).map((task, index) => {
+              if (index !== taskIndex) return task;
+              taskTrade = task.suggestedTrade || getSuggestedTradeForTask(task);
+              return getScheduleTaskWithContractor(task, selectedContractor);
+            })
+          )
+        };
+      })
+    );
+
+    addTradeToContractorIfNeeded(contractorId, taskTrade);
   };
 
   const updateDraftScheduleStartDate = (value, scheduleSnapshot = []) => {
@@ -1867,7 +2059,10 @@ export default function ConstructionQuoteApp() {
         tax: Number(totals.tax || 0),
         total: Number(totals.total || 0)
       },
-      schedule: schedule.filter((task) => task.name?.trim())
+      schedule: assignContractorsToSchedule(
+        schedule.filter((task) => task.name?.trim()),
+        savedContractors
+      )
     };
   };
 
@@ -1916,7 +2111,10 @@ export default function ConstructionQuoteApp() {
       return;
     }
 
-    const newSchedule = buildScheduleFromItems(items, startDate);
+    const newSchedule = assignContractorsToSchedule(
+      buildScheduleFromItems(items, startDate),
+      savedContractors
+    );
 
     if (newSchedule[0]?.startDate) {
       setStartDate(newSchedule[0].startDate);
@@ -1950,7 +2148,7 @@ export default function ConstructionQuoteApp() {
         : 1;
 
     const quote = {
-      id: existingQuote?.id || Date.now(),
+      id: existingQuote?.id || createQuoteId(),
       status: quoteStatus,
       projectNumber,
       invoicePartNumber,
@@ -1966,7 +2164,7 @@ export default function ConstructionQuoteApp() {
       contractorProfile: normalizedQuoteContractorProfile,
       items,
       totals,
-      schedule
+      schedule: assignContractorsToSchedule(schedule, savedContractors)
     };
 
     setSavedQuotes((previous) => {
@@ -2233,6 +2431,11 @@ export default function ConstructionQuoteApp() {
           {!isCurrentQuoteApproved && !isCurrentQuoteLocked ? (
             <div className="button-row">
               <Button variant="secondary" onClick={markQuoteApproved}>✅ Mark Approved</Button>
+              {activeQuoteRecord && (activeQuoteRecord.status || "open") === "open" ? (
+                <Button variant="danger" onClick={() => deleteUnapprovedQuote(activeQuoteRecord)}>
+                  Delete Quote
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -2455,6 +2658,11 @@ export default function ConstructionQuoteApp() {
             {!isCurrentQuoteLocked ? (
               <Button variant="secondary" onClick={saveQuote}>💾 Save Quote</Button>
             ) : null}
+            {activeQuoteRecord && (activeQuoteRecord.status || "open") === "open" ? (
+              <Button variant="danger" onClick={() => deleteUnapprovedQuote(activeQuoteRecord)}>
+                Delete Quote
+              </Button>
+            ) : null}
             <Button variant="secondary" onClick={openExportModal}>📤 Export Quote</Button>
           </div>
         </div>
@@ -2507,6 +2715,7 @@ export default function ConstructionQuoteApp() {
     <SchedulePage
       dark={dark}
       schedule={schedule}
+      savedContractors={savedContractors}
       approvedQuotes={approvedScheduleQuotes}
       selectedQuoteSchedule={selectedApprovedScheduleQuote}
       currentDraftSchedule={schedule}
@@ -2525,6 +2734,9 @@ export default function ConstructionQuoteApp() {
       onMarkQuoteTaskCompleted={(quote, taskIndex) => markSavedQuoteScheduleTaskCompleted(quote.id, taskIndex)}
       onMarkDraftTaskInProgress={markDraftScheduleTaskInProgress}
       onMarkQuoteTaskInProgress={(quote, taskIndex) => markSavedQuoteScheduleTaskInProgress(quote.id, taskIndex)}
+      onAssignDraftTaskContractor={assignDraftScheduleTaskContractor}
+      onAssignQuoteTaskContractor={(quote, taskIndex, contractorId) =>
+        assignSavedQuoteScheduleTaskContractor(quote.id, taskIndex, contractorId)}
       onUpdateDraftScheduleStartDate={updateDraftScheduleStartDate}
       onUpdateQuoteScheduleStartDate={(quote, value, scheduleSnapshot) =>
         updateSavedQuoteScheduleStartDate(quote.id, value, scheduleSnapshot)}
@@ -2836,23 +3048,25 @@ export default function ConstructionQuoteApp() {
   );
 
   const renderContractor = () => (
-    <ContractorPage
-      dark={dark}
-      savedContractors={savedContractors}
-      contractorDraft={contractorDraft}
-      selectedContractorId={selectedContractorId}
-      isEditingContractor={isEditingContractor}
-      showContractorNotes={showContractorNotes}
-      contractorExpirySettings={contractorExpirySettings}
-      onUpdateContractorProfile={updateContractorProfile}
-      onSaveContractor={saveContractorProfile}
-      onCancelContractorEditing={cancelContractorEditing}
-      onSelectContractor={selectContractor}
-      onStartNewContractor={startNewContractor}
-      onStartEditingContractor={startEditingContractor}
-      onToggleContractorNotes={() => setShowContractorNotes((previous) => !previous)}
-      onOpenQuotes={openQuotesLanding}
-    />
+    <Suspense fallback={<Card dark={dark}>Loading contractors...</Card>}>
+      <ContractorPage
+        dark={dark}
+        savedContractors={savedContractors}
+        contractorDraft={contractorDraft}
+        selectedContractorId={selectedContractorId}
+        isEditingContractor={isEditingContractor}
+        showContractorNotes={showContractorNotes}
+        contractorExpirySettings={contractorExpirySettings}
+        onUpdateContractorProfile={updateContractorProfile}
+        onSaveContractor={saveContractorProfile}
+        onCancelContractorEditing={cancelContractorEditing}
+        onSelectContractor={selectContractor}
+        onStartNewContractor={startNewContractor}
+        onStartEditingContractor={startEditingContractor}
+        onToggleContractorNotes={() => setShowContractorNotes((previous) => !previous)}
+        onOpenQuotes={openQuotesLanding}
+      />
+    </Suspense>
   );
 
   const renderCustomer = () => (

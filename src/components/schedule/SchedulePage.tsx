@@ -10,11 +10,12 @@ import {
   sanitizeNumericInput,
   toDateInputValue
 } from "../../utils/appUtils";
-import { SavedQuote, ScheduleItem } from "../../types/appTypes";
+import { ContractorProfile, SavedQuote, ScheduleItem } from "../../types/appTypes";
 
 type SchedulePageProps = {
   dark: boolean;
   schedule?: ScheduleItem[];
+  savedContractors?: ContractorProfile[];
   approvedQuotes?: SavedQuote[];
   selectedQuoteSchedule?: SavedQuote | null;
   currentDraftSchedule?: ScheduleItem[];
@@ -33,6 +34,8 @@ type SchedulePageProps = {
   onMarkQuoteTaskCompleted?: (quote: SavedQuote, taskIndex: number) => void;
   onMarkDraftTaskInProgress?: (taskIndex: number) => void;
   onMarkQuoteTaskInProgress?: (quote: SavedQuote, taskIndex: number) => void;
+  onAssignDraftTaskContractor?: (taskIndex: number, contractorId: string) => void;
+  onAssignQuoteTaskContractor?: (quote: SavedQuote, taskIndex: number, contractorId: string) => void;
   onUpdateDraftScheduleStartDate?: (value: string, scheduleSnapshot: ScheduleItem[]) => void;
   onUpdateQuoteScheduleStartDate?: (quote: SavedQuote, value: string, scheduleSnapshot: ScheduleItem[]) => void;
   onReorderDraftScheduleTasks?: (fromIndex: number, toIndex: number, scheduleSnapshot: ScheduleItem[]) => void;
@@ -135,9 +138,29 @@ const getTaskCompletionLabel = (status = "") => {
   return "On Time";
 };
 
+const getContractorDisplayName = (contractor: ContractorProfile) =>
+  contractor.companyName?.trim() || contractor.contactName?.trim() || "Contractor";
+
+const getContractorTradeList = (contractor: ContractorProfile) =>
+  String(contractor.trade || "")
+    .split(/[,/|&]+|\band\b/i)
+    .map((trade) => trade.trim())
+    .filter(Boolean);
+
+const getContractorMatchesTask = (contractor: ContractorProfile, task: ScheduleItem) => {
+  const suggestedTrade = String(task.suggestedTrade || task.category || "").trim().toLowerCase();
+  if (!suggestedTrade || contractor.status === "inactive") return false;
+
+  return getContractorTradeList(contractor).some((trade) => {
+    const normalizedTrade = trade.toLowerCase();
+    return normalizedTrade.includes(suggestedTrade) || suggestedTrade.includes(normalizedTrade);
+  });
+};
+
 export default function SchedulePage({
   dark,
   schedule = [],
+  savedContractors = [],
   approvedQuotes = [],
   selectedQuoteSchedule = null,
   currentDraftSchedule = [],
@@ -156,6 +179,8 @@ export default function SchedulePage({
   onMarkQuoteTaskCompleted,
   onMarkDraftTaskInProgress,
   onMarkQuoteTaskInProgress,
+  onAssignDraftTaskContractor,
+  onAssignQuoteTaskContractor,
   onUpdateDraftScheduleStartDate,
   onUpdateQuoteScheduleStartDate,
   onReorderDraftScheduleTasks,
@@ -169,6 +194,7 @@ export default function SchedulePage({
   const [dragOverTaskIndex, setDragOverTaskIndex] = useState<number | null>(null);
   const [isEditingScheduleStartDate, setIsEditingScheduleStartDate] = useState(false);
   const [pendingScheduleStartDate, setPendingScheduleStartDate] = useState("");
+  const [openContractorPickerTaskIndex, setOpenContractorPickerTaskIndex] = useState<number | null>(null);
 
   const today = toDateInputValue(new Date().toISOString().slice(0, 10));
 
@@ -481,6 +507,16 @@ export default function SchedulePage({
     }
   };
 
+  const assignTaskContractor = (taskIndex: number, contractorId: string) => {
+    if (shouldShowDraftDetail) {
+      onAssignDraftTaskContractor?.(taskIndex, contractorId);
+    } else if (selectedQuoteSchedule) {
+      onAssignQuoteTaskContractor?.(selectedQuoteSchedule, taskIndex, contractorId);
+    }
+
+    setOpenContractorPickerTaskIndex(null);
+  };
+
   const applyScheduleStartDateUpdate = () => {
     const nextStartDate = clampStartDate(pendingScheduleStartDate);
     if (!nextStartDate || !editableScheduleItems.length) return;
@@ -633,6 +669,13 @@ export default function SchedulePage({
                 const previewEndDate =
                   editableTask?.endDate || getScheduleEndDate(nextStartDate, Number(nextDuration || task.duration || 1));
                 const completionStatusClass = task.completionStatus || "on-time";
+                const matchingContractors = savedContractors.filter((contractor) => getContractorMatchesTask(contractor, task));
+                const otherContractors = savedContractors.filter(
+                  (contractor) =>
+                    contractor.status !== "inactive" &&
+                    !matchingContractors.some((matchingContractor) => matchingContractor.id === contractor.id)
+                );
+                const canAssignContractor = !isSelectedQuoteLocked && (onAssignDraftTaskContractor || onAssignQuoteTaskContractor);
 
                 return (
                   <div
@@ -670,6 +713,79 @@ export default function SchedulePage({
                       <div className="row-subtitle schedule-task-meta">
                         {task.category} • {nextDuration} day(s)
                       </div>
+                      <div className="row-subtitle schedule-task-meta">
+                        <strong>Assigned:</strong>{" "}
+                        {canAssignContractor ? (
+                          <button
+                            type="button"
+                            className="inline-link-button schedule-contractor-trigger"
+                            onClick={() =>
+                              setOpenContractorPickerTaskIndex((previous) => previous === index ? null : index)
+                            }
+                          >
+                            {task.assignedContractorName
+                              ? `${task.assignedContractorName}${task.assignedContractorTrade ? ` (${task.assignedContractorTrade})` : ""}`
+                              : task.suggestedTrade
+                                ? `Choose ${task.suggestedTrade} contractor`
+                                : "Choose contractor"}
+                          </button>
+                        ) : (
+                          task.assignedContractorName
+                            ? `${task.assignedContractorName}${task.assignedContractorTrade ? ` (${task.assignedContractorTrade})` : ""}`
+                            : task.suggestedTrade
+                              ? `Suggested ${task.suggestedTrade}`
+                              : "No matching contractor"
+                        )}
+                      </div>
+                      {canAssignContractor && openContractorPickerTaskIndex === index ? (
+                        <div className="schedule-contractor-picker">
+                          <div className="schedule-contractor-picker-title">
+                            Best matches for {task.suggestedTrade || task.category || "this task"}
+                          </div>
+                          <div className="schedule-contractor-option-list">
+                            {matchingContractors.length ? (
+                              matchingContractors.map((contractor) => (
+                                <button
+                                  key={contractor.id || getContractorDisplayName(contractor)}
+                                  type="button"
+                                  className="schedule-contractor-option"
+                                  onClick={() => assignTaskContractor(index, contractor.id || "")}
+                                >
+                                  {getContractorDisplayName(contractor)}
+                                  {contractor.trade ? ` - ${contractor.trade}` : ""}
+                                </button>
+                              ))
+                            ) : (
+                              <span className="row-subtitle">No saved contractor matches this trade yet.</span>
+                            )}
+                          </div>
+
+                          {otherContractors.length ? (
+                            <>
+                              <div className="schedule-contractor-picker-title">Manual saved contractor</div>
+                              <div className="schedule-contractor-option-list">
+                                {otherContractors.map((contractor) => (
+                                  <button
+                                    key={contractor.id || getContractorDisplayName(contractor)}
+                                    type="button"
+                                    className="schedule-contractor-option"
+                                    onClick={() => assignTaskContractor(index, contractor.id || "")}
+                                  >
+                                    {getContractorDisplayName(contractor)}
+                                    {contractor.trade ? ` - ${contractor.trade}` : " - add this trade"}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          ) : null}
+
+                          {task.assignedContractorId ? (
+                            <Button variant="secondary" onClick={() => assignTaskContractor(index, "")}>
+                              Clear Assignment
+                            </Button>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {task.completed ? (
                         <div className="row-subtitle">
                           Completed {task.completedAt || "date not set"}

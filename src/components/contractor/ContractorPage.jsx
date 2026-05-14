@@ -1,6 +1,173 @@
 import React from "react";
 import { Card, Button, Input, Select } from "../ui";
 
+const CONTRACTOR_TRADE_PROFILES = [
+  {
+    id: "general-renovation",
+    label: "General Contractor / Renovation Company",
+    defaultTrades: [
+      "Demolition", "Framing", "Drywall", "Taping", "Painting", "Flooring", "Tile", "Finish carpentry",
+      "Trim/baseboards", "Doors", "Windows", "Cabinetry", "Plumbing", "Electrical", "HVAC"
+    ],
+    optionalTrades: [
+      "Roofing", "Concrete", "Landscaping", "Masonry", "Insulation", "Waterproofing",
+      "Permits/inspection", "Waste removal", "Cleaning"
+    ]
+  },
+  {
+    id: "plumbing",
+    label: "Plumbing Company",
+    defaultTrades: [
+      "Plumbing rough-in", "Plumbing finishing", "Fixture installation", "Drain cleaning", "Pipe repair",
+      "Leak repair", "Water heater installation", "Sump pump installation", "Toilet installation",
+      "Faucet installation", "Shower/tub installation", "Shutoff valve replacement"
+    ],
+    optionalTrades: [
+      "Gas fitting", "Backflow prevention", "Sewer line repair", "Camera inspection", "Hydronic heating",
+      "Water softeners", "Emergency service"
+    ]
+  },
+  {
+    id: "electrical",
+    label: "Electrical Company",
+    defaultTrades: [
+      "Rough-in electrical", "Finish electrical", "Panel upgrades", "Lighting installation",
+      "Outlet/switch installation", "Breaker replacement", "Troubleshooting", "EV charger installation",
+      "Smoke/CO detector installation"
+    ],
+    optionalTrades: [
+      "Low voltage", "Security cameras", "Smart home wiring", "Solar wiring", "Generator hookup",
+      "Data/network cabling", "Fire alarm systems"
+    ]
+  },
+  {
+    id: "hvac",
+    label: "HVAC Company",
+    defaultTrades: [
+      "Furnace installation", "Furnace repair", "AC installation", "AC repair", "Ductwork",
+      "Thermostat installation", "Ventilation", "Maintenance/service calls"
+    ],
+    optionalTrades: [
+      "Heat pumps", "Boilers", "Radiant heating", "Gas lines", "HRV/ERV systems",
+      "Commercial rooftop units", "Refrigeration"
+    ]
+  },
+  {
+    id: "roofing",
+    label: "Roofing Company",
+    defaultTrades: [
+      "Roof inspection", "Shingle roofing", "Flat roofing", "Roof repair", "Flashing", "Underlayment",
+      "Ice/water shield", "Gutters", "Downspouts", "Soffit/fascia"
+    ],
+    optionalTrades: ["Skylights", "Chimney flashing", "Metal roofing", "Roof ventilation", "Emergency tarping", "Siding"]
+  },
+  {
+    id: "drywall-taping",
+    label: "Drywall / Taping Company",
+    defaultTrades: ["Drywall installation", "Drywall repair", "Boarding", "Taping", "Mudding", "Sanding", "Corner bead", "Ceiling repair"],
+    optionalTrades: ["Texture removal", "Popcorn ceiling removal", "Soundproofing", "Fire-rated drywall", "Painting"]
+  },
+  {
+    id: "painting",
+    label: "Painting Company",
+    defaultTrades: ["Interior painting", "Exterior painting", "Primer", "Wall repair", "Trim painting", "Door painting", "Ceiling painting", "Staining"],
+    optionalTrades: ["Cabinet painting", "Wallpaper removal", "Spray painting", "Deck staining", "Epoxy coatings"]
+  },
+  {
+    id: "flooring",
+    label: "Flooring Company",
+    defaultTrades: [
+      "Flooring removal", "Subfloor prep", "Laminate flooring", "Vinyl plank", "Hardwood",
+      "Engineered hardwood", "Carpet", "Baseboard removal/reinstall"
+    ],
+    optionalTrades: ["Tile flooring", "Stairs", "Floor leveling", "Heated floors", "Epoxy floors"]
+  },
+  {
+    id: "tile",
+    label: "Tile Company",
+    defaultTrades: ["Tile removal", "Floor tile", "Wall tile", "Shower tile", "Backsplash", "Grout", "Waterproofing", "Schluter/edge trim"],
+    optionalTrades: ["Heated floors", "Shower niches", "Stone tile", "Large-format tile", "Tile repair"]
+  },
+  {
+    id: "framing-carpentry",
+    label: "Framing / Carpentry Company",
+    defaultTrades: ["Rough framing", "Wall framing", "Basement framing", "Door framing", "Window framing", "Blocking", "Structural repairs"],
+    optionalTrades: ["Deck framing", "Stairs", "Roof framing", "Finish carpentry", "Trim", "Custom woodwork"]
+  },
+  {
+    id: "finish-carpentry",
+    label: "Finish Carpentry Company",
+    defaultTrades: ["Baseboards", "Casing", "Crown moulding", "Interior doors", "Door hardware", "Shelving", "Closet systems", "Wainscoting"],
+    optionalTrades: ["Built-ins", "Custom cabinets", "Stair railings", "Fireplace mantels", "Accent walls"]
+  },
+  {
+    id: "concrete",
+    label: "Concrete Company",
+    defaultTrades: ["Concrete forming", "Concrete pouring", "Concrete finishing", "Slabs", "Driveways", "Walkways", "Patios", "Garage floors"],
+    optionalTrades: ["Stamped concrete", "Concrete cutting", "Concrete repair", "Foundation work", "Waterproofing", "Epoxy coatings"]
+  },
+  {
+    id: "landscaping",
+    label: "Landscaping Company",
+    defaultTrades: ["Sod installation", "Grading", "Soil/mulch", "Planting", "Lawn maintenance", "Garden beds", "Tree/shrub planting"],
+    optionalTrades: ["Interlock", "Retaining walls", "Irrigation", "Drainage", "Fence/deck work", "Snow removal", "Outdoor lighting"]
+  },
+  {
+    id: "masonry",
+    label: "Masonry Company",
+    defaultTrades: ["Brick repair", "Block work", "Stone work", "Tuckpointing", "Chimney repair", "Foundation parging"],
+    optionalTrades: ["Retaining walls", "Concrete work", "Fireplace stone", "Cultured stone", "Waterproofing"]
+  },
+  {
+    id: "excavation-sitework",
+    label: "Excavation / Sitework Company",
+    defaultTrades: ["Excavation", "Trenching", "Grading", "Backfilling", "Soil removal", "Gravel base", "Drainage prep"],
+    optionalTrades: ["Septic", "Sewer/water service", "Demolition", "Foundation excavation", "Utility trenching", "Landscaping prep"]
+  },
+  {
+    id: "demolition",
+    label: "Demolition Company",
+    defaultTrades: ["Interior demolition", "Full demolition", "Flooring removal", "Cabinet removal", "Drywall removal", "Debris removal", "Bin loading"],
+    optionalTrades: ["Asbestos coordination", "Concrete breaking", "Selective demolition", "Site cleanup", "Salvage"]
+  },
+  {
+    id: "window-door",
+    label: "Window / Door Company",
+    defaultTrades: [
+      "Window removal", "Window installation", "Door removal", "Exterior door installation", "Interior door installation",
+      "Flashing", "Caulking", "Trim repair"
+    ],
+    optionalTrades: ["Garage doors", "Patio doors", "Skylights", "Custom openings", "Framing repairs"]
+  },
+  {
+    id: "cabinet-kitchen",
+    label: "Cabinet / Kitchen Company",
+    defaultTrades: ["Cabinet installation", "Cabinet removal", "Countertop coordination", "Hardware installation", "Crown/valance", "Pantry installation"],
+    optionalTrades: ["Custom cabinets", "Cabinet refacing", "Backsplash", "Plumbing coordination", "Electrical coordination", "Appliance install"]
+  },
+  {
+    id: "insulation",
+    label: "Insulation Company",
+    defaultTrades: ["Batt insulation", "Blown-in insulation", "Spray foam", "Vapour barrier", "Attic insulation", "Basement insulation"],
+    optionalTrades: ["Soundproofing", "Firestopping", "Air sealing", "Removal of old insulation"]
+  },
+  {
+    id: "handy-person",
+    label: "Handy Person / Property Maintenance",
+    defaultTrades: [
+      "Small repairs", "Fixture replacement", "Painting touch-ups", "Drywall patching", "Caulking",
+      "Door repair", "Furniture assembly", "Minor plumbing", "Minor electrical"
+    ],
+    optionalTrades: ["Flooring repair", "Fence repair", "Deck repair", "Appliance installation", "Seasonal maintenance"]
+  },
+  {
+    id: "cleaning",
+    label: "Cleaning / Post-Construction Cleaning",
+    defaultTrades: ["Rough clean", "Final clean", "Dust removal", "Window cleaning", "Floor cleaning", "Garbage removal", "Bathroom cleaning", "Kitchen cleaning"],
+    optionalTrades: ["Pressure washing", "Carpet cleaning", "Move-in/move-out cleaning", "Exterior cleanup"]
+  }
+];
+
 const getContractorDisplayName = (profile = {}) =>
   String(profile?.companyName || "").trim() ||
   String(profile?.contactName || "").trim() ||
@@ -62,6 +229,24 @@ const getContractorRateDisplay = (contractor = {}) => {
   return `$${rate} / ${getRateTypeLabel(contractor.rateType).toLowerCase()}`;
 };
 
+const parseTradeList = (value = "") =>
+  String(value || "")
+    .split(",")
+    .map((trade) => trade.trim())
+    .filter(Boolean);
+
+const getMergedTradeList = (currentTrades = "", nextTrades = []) => {
+  const tradeMap = new Map();
+
+  [...parseTradeList(currentTrades), ...nextTrades].forEach((trade) => {
+    const normalizedTrade = trade.toLowerCase();
+    if (!normalizedTrade) return;
+    tradeMap.set(normalizedTrade, trade);
+  });
+
+  return Array.from(tradeMap.values());
+};
+
 export default function ContractorPage({
   dark,
   savedContractors,
@@ -79,6 +264,43 @@ export default function ContractorPage({
   onToggleContractorNotes,
   onOpenQuotes
 }) {
+  const selectedTradeProfileId = contractorDraft.companyType || CONTRACTOR_TRADE_PROFILES[0]?.id || "";
+  const selectedTradeProfile =
+    CONTRACTOR_TRADE_PROFILES.find((profile) => profile.id === selectedTradeProfileId) ||
+    CONTRACTOR_TRADE_PROFILES[0];
+  const selectedTradeNames = parseTradeList(contractorDraft.trade).map((trade) => trade.toLowerCase());
+  const selectedTradeCount = selectedTradeNames.length;
+  const selectedTradeLabel = selectedTradeCount
+    ? `${selectedTradeCount} trade${selectedTradeCount === 1 ? "" : "s"} selected`
+    : "Select one or more trades";
+  const hasTradeSelected = (trade) => selectedTradeNames.includes(trade.toLowerCase());
+  const updateTrades = (trades) => onUpdateContractorProfile("trade", trades.join(", "));
+  const addTrades = (trades) => updateTrades(getMergedTradeList(contractorDraft.trade, trades));
+  const toggleTrade = (trade) => {
+    const currentTrades = parseTradeList(contractorDraft.trade);
+    const hasTrade = currentTrades.some((currentTrade) => currentTrade.toLowerCase() === trade.toLowerCase());
+    updateTrades(hasTrade ? currentTrades.filter((currentTrade) => currentTrade.toLowerCase() !== trade.toLowerCase()) : [...currentTrades, trade]);
+  };
+  const renderTradeChecklist = (title, trades = []) => (
+    <div className="contractor-trade-group">
+      <div className="contractor-trade-group-title">{title}</div>
+      <div className="contractor-trade-list">
+        {trades.map((trade) => (
+          <div key={trade} className="contractor-trade-list-row">
+            <label className="contractor-trade-list-option">
+              <input
+                type="checkbox"
+                checked={hasTradeSelected(trade)}
+                onChange={() => toggleTrade(trade)}
+              />
+              <span>{trade}</span>
+            </label>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   const contractorFormFields = (
     <>
       <div className="grid three-col">
@@ -99,13 +321,37 @@ export default function ContractorPage({
           />
         </label>
         <label>
-          Trade
-          <Input
-            placeholder="Trade"
-            value={contractorDraft.trade}
-            onChange={(e) => onUpdateContractorProfile("trade", e.target.value)}
-          />
+          Company Type
+          <Select value={selectedTradeProfileId} onChange={(e) => onUpdateContractorProfile("companyType", e.target.value)}>
+            {CONTRACTOR_TRADE_PROFILES.map((profile) => (
+              <option key={profile.id} value={profile.id}>{profile.label}</option>
+            ))}
+          </Select>
         </label>
+        <div className="contractor-trade-onboarding span-two">
+          <div className="contractor-trade-field-label">Trade</div>
+          <details className="contractor-trade-dropdown">
+            <summary>
+              <span>{selectedTradeLabel}</span>
+              <span>Trade ▾</span>
+            </summary>
+
+            <div className="button-row contractor-trade-actions">
+              <Button
+                variant="secondary"
+                onClick={() => addTrades([...selectedTradeProfile.defaultTrades, ...selectedTradeProfile.optionalTrades])}
+              >
+                Select All
+              </Button>
+              <Button variant="secondary" onClick={() => updateTrades([])}>
+                Clear
+              </Button>
+            </div>
+
+            {renderTradeChecklist("Default", selectedTradeProfile.defaultTrades)}
+            {renderTradeChecklist("Optional", selectedTradeProfile.optionalTrades)}
+          </details>
+        </div>
         <label>
           Phone
           <Input
@@ -207,7 +453,9 @@ export default function ContractorPage({
 
   const contractorEditorActions = (
     <div className="button-row customer-action-row">
-      <Button onClick={onSaveContractor}>Save Contractor</Button>
+      <Button onClick={onSaveContractor}>
+        {contractorDraft.id ? "Update Changes" : "Save Contractor"}
+      </Button>
       <Button variant="secondary" onClick={onCancelContractorEditing}>Cancel</Button>
     </div>
   );
@@ -280,7 +528,7 @@ export default function ContractorPage({
                       </span>
                     </div>
                     <div className="row-subtitle">
-                      {contractor.trade || contractor.contactName || "No trade"} • {contractor.email || contractor.phone || "No contact info"} • Last job: {contractor.lastAssignedJobDate || "None"}
+                      {contractor.trade || contractor.contactName || "No trades"} • {contractor.email || contractor.phone || "No contact info"} • Last job: {contractor.lastAssignedJobDate || "None"}
                     </div>
                   </button>
                   <div className="button-row">
@@ -318,7 +566,7 @@ export default function ContractorPage({
                     <div className="details-list">
                       <div><strong>Company:</strong> {contractor.companyName || "Not set"}</div>
                       <div><strong>Contact:</strong> {contractor.contactName || "Not set"}</div>
-                      <div><strong>Trade:</strong> {contractor.trade || "Not set"}</div>
+                      <div><strong>Trades:</strong> {contractor.trade || "Not set"}</div>
                       <div><strong>Status:</strong> {contractor.status === "inactive" ? "Inactive" : "Active"}</div>
                       <div><strong>Rate:</strong> {getContractorRateDisplay(contractor)}</div>
                       <div><strong>Auto-Expiry:</strong> {contractorExpirySettings.enabled ? getContractorExpiryLabel(contractorExpirySettings) : "Off"}</div>

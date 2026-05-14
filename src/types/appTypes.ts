@@ -35,6 +35,7 @@ export interface ContractorProfile {
   id?: string;
   createdAt?: string;
   updatedAt?: string;
+  companyType?: string;
   companyName: string;
   contactName: string;
   trade: string;
@@ -63,6 +64,10 @@ export interface PriceListItem {
 export interface ScheduleItem extends QuoteItem {
   startDate: string;
   endDate: string;
+  suggestedTrade?: string;
+  assignedContractorId?: string;
+  assignedContractorName?: string;
+  assignedContractorTrade?: string;
   completed?: boolean;
   completedAt?: string;
   completionStatus?: "early" | "on-time" | "delayed";

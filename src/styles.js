@@ -107,7 +107,180 @@ export const APP_STYLES = `
   .grid.template-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .grid.customer-address-row { grid-template-columns: minmax(0, 2fr) minmax(140px, 0.8fr); }
   .grid.contractor-rate-row { grid-template-columns: minmax(0, 1fr) minmax(140px, 0.6fr); }
-  .span-two { grid-column: span 2; }
+  .span-two { grid-column: span 1; }
+  
+ .contractor-trade-onboarding {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.app-shell.dark .contractor-trade-onboarding {
+  border: none;
+  background: transparent;
+}
+
+.contractor-trade-field-label {
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.contractor-trade-dropdown summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111827;
+  cursor: pointer;
+  font-weight: 400;
+  font-size: 0.95rem;
+  list-style: none;
+}
+
+.contractor-trade-dropdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-shell.dark .contractor-trade-dropdown summary {
+  border-color: #4b5563;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+.contractor-trade-dropdown[open] {
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  overflow: hidden;
+}
+
+.app-shell.dark .contractor-trade-dropdown[open] {
+  background: #111827;
+  border-color: #374151;
+}
+
+.contractor-trade-dropdown[open] summary {
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 0;
+}
+
+.app-shell.dark .contractor-trade-dropdown[open] summary {
+  border-bottom-color: #374151;
+}
+
+.contractor-trade-actions {
+  padding: 12px;
+  margin-bottom: 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.app-shell.dark .contractor-trade-actions {
+  border-bottom-color: #374151;
+}
+
+.contractor-trade-group {
+  padding: 12px;
+  margin-top: 0;
+}
+
+.contractor-trade-group + .contractor-trade-group {
+  border-top: 1px solid #e5e7eb;
+}
+
+.app-shell.dark .contractor-trade-group + .contractor-trade-group {
+  border-top-color: #374151;
+}
+
+.contractor-trade-group-title {
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.app-shell.dark .contractor-trade-group-title {
+  color: #9ca3af;
+}
+
+.contractor-trade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.contractor-trade-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.app-shell.dark .contractor-trade-list-row {
+  border-color: #374151;
+  background: #111827;
+}
+
+.contractor-trade-list-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.contractor-trade-list-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  flex-shrink: 0;
+}
+
+.contractor-trade-list-option span {
+  overflow-wrap: anywhere;
+}
+
+.contractor-trade-only {
+  border: none;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #111827;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+
+.contractor-trade-only:hover {
+  background: #d1d5db;
+}
+
+.app-shell.dark .contractor-trade-only {
+  background: #374151;
+  color: #f9fafb;
+}
+
+.app-shell.dark .contractor-trade-only:hover {
+  background: #4b5563;
+}
+
+.contractor-trade-helper {
+  padding: 0 12px 12px;
+  margin: 0;
+}
 
   .stats-grid {
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px;
@@ -1073,6 +1246,56 @@ export const APP_STYLES = `
   }
   .schedule-task-meta {
     margin-top: 0;
+  }
+  .schedule-contractor-trigger {
+    display: inline;
+  }
+  .schedule-contractor-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(100%, 520px);
+    padding: 10px;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+    background: #eff6ff;
+  }
+  .app-shell.dark .schedule-contractor-picker {
+    border-color: #1d4ed8;
+    background: #172554;
+  }
+  .schedule-contractor-picker-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #1d4ed8;
+  }
+  .app-shell.dark .schedule-contractor-picker-title {
+    color: #bfdbfe;
+  }
+  .schedule-contractor-option-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .schedule-contractor-option {
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #1e3a8a;
+    padding: 7px 9px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.85rem;
+    text-align: left;
+  }
+  .schedule-contractor-option:hover {
+    border-color: #2563eb;
+    background: #dbeafe;
+  }
+  .app-shell.dark .schedule-contractor-option {
+    border-color: #1e40af;
+    background: #111827;
+    color: #dbeafe;
   }
   .schedule-edit-grid {
     display: grid;
