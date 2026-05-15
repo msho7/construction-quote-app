@@ -1578,10 +1578,14 @@ export const APP_STYLES = `
     .app-shell.navigation-closed { grid-template-columns: 1fr; }
     .sidebar { border-right: none; border-bottom: 1px solid #d1d5db; }
     .app-shell.navigation-closed .sidebar {
-      align-items: flex-start;
-      padding: 16px;
+      align-items: flex-end;
+      gap: 0;
+      padding: 10px 16px;
     }
     .app-shell.dark .sidebar { border-bottom-color: #374151; }
+    .app-shell.navigation-closed .sidebar-header {
+      justify-content: flex-end;
+    }
     .nav-list { flex-direction: row; flex-wrap: wrap; }
     .stats-grid, .analysis-metric-grid, .analysis-status-grid, .analysis-detail-grid, .two-col-layout, .grid.three-col, .grid.price-grid, .grid.template-grid, .export-modal-grid {
       grid-template-columns: 1fr 1fr;
@@ -1594,6 +1598,10 @@ export const APP_STYLES = `
 
   @media (max-width: 760px) {
     .main-content, .sidebar { padding: 16px; }
+    .app-shell.navigation-closed .sidebar { padding: 10px 16px; }
+    .sidebar-header {
+      align-items: center;
+    }
     .stats-grid, .analysis-metric-grid, .analysis-status-grid, .analysis-detail-grid, .analysis-table-row, .two-col-layout, .grid.three-col, .grid.price-grid, .grid.template-grid,
     .export-modal-grid, .room-name-row, .grid.customer-address-row, .grid.contractor-rate-row,
     .quote-header-row, .quote-row.advanced, .item-picker,

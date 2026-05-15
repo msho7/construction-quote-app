@@ -850,7 +850,10 @@ export default function ConstructionQuoteApp() {
   });
 
   const [currentPage, setCurrentPage] = useState("dashboard");
-  const [navigationOpen, setNavigationOpen] = useState(true);
+  const [navigationOpen, setNavigationOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("navigationOpen") === "true";
+  });
   const [savedContractors, setSavedContractors] = useState(getInitialSavedContractors);
   const [contractorProfile, setContractorProfile] = useState(getInitialContractorProfile);
   const [contractorDraft, setContractorDraft] = useState(getInitialContractorProfile);
@@ -1033,6 +1036,12 @@ export default function ConstructionQuoteApp() {
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("themeMode", themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("navigationOpen", String(navigationOpen));
+    }
+  }, [navigationOpen]);
 
   useEffect(() => {
     const normalizedSettings = getContractorExpirySettings(contractorExpirySettings);
@@ -3338,6 +3347,22 @@ export default function ConstructionQuoteApp() {
   );
 
   const MotionDiv = motion.div;
+  const closeNavigationOnSmallScreen = () => {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1100px)").matches) {
+      setNavigationOpen(false);
+    }
+  };
+  const openNavigationPage = (pageId) => {
+    if (pageId === "quotes") {
+      openQuotesLanding();
+    } else if (pageId === "schedule") {
+      openScheduleLanding();
+    } else {
+      setCurrentPage(pageId);
+    }
+
+    closeNavigationOnSmallScreen();
+  };
 
   return (
     <>
@@ -3375,17 +3400,7 @@ export default function ConstructionQuoteApp() {
                   key={page.id}
                   className={`nav-item ${currentPage === page.id ? "active" : ""}`}
                   type="button"
-                  onClick={() => {
-                    if (page.id === "quotes") {
-                      openQuotesLanding();
-                      return;
-                    }
-                    if (page.id === "schedule") {
-                      openScheduleLanding();
-                      return;
-                    }
-                    setCurrentPage(page.id);
-                  }}
+                  onClick={() => openNavigationPage(page.id)}
                 >
                   {page.label}
                 </button>

@@ -94,21 +94,7 @@ const getQuoteDisplayRows = (quoteItems) => {
   return rows;
 };
 
-const getNotesAndTerms = (quote) => {
-  const scheduleSummary = quote.schedule?.length
-    ? `Timeline: ${quote.schedule
-        .map((task) => `${task.name} (${task.startDate} to ${task.endDate})`)
-        .join("; ")}`
-    : "";
-
-  return [
-    quote.startDate ? `Start Date: ${quote.startDate}` : "",
-    `Tax Rate: ${quote.taxRate}%`,
-    scheduleSummary,
-  ]
-    .filter(Boolean)
-    .join("\n");
-};
+const getQuoteTerms = (quote) => `Tax Rate: ${quote.taxRate}%`;
 
 const getQuoteExportModel = (quote) => {
   const contractor = quote.contractorProfile || {};
@@ -116,7 +102,7 @@ const getQuoteExportModel = (quote) => {
   const quoteItems = quote.items.filter((item) => item.name?.trim());
   const quoteNumber = formatQuoteReferenceNumber(quote);
   const validForDays = Number(quote.validForDays || 14);
-  const notesAndTerms = getNotesAndTerms(quote) || "Thank you for the opportunity to quote this project.";
+  const quoteTerms = getQuoteTerms(quote);
   const companySecondaryLine = combineParts([contractor.trade, contractor.contactName, contractor.email]);
   const customerDetails = combineParts([customer.phone, customer.email]);
   const contractorAddress = getProfileAddressDisplay(contractor);
@@ -135,7 +121,7 @@ const getQuoteExportModel = (quote) => {
     quoteItems,
     quoteNumber,
     validForDays,
-    notesAndTerms,
+    quoteTerms,
     companySecondaryLine,
     contractorAddress,
     customerDetails,
@@ -178,7 +164,7 @@ const buildExcelWorkbook = (quote) => {
     customer,
     quoteNumber,
     validForDays,
-    notesAndTerms,
+    quoteTerms,
     companySecondaryLine,
     contractorAddress,
     customerDetails,
@@ -353,7 +339,7 @@ const buildExcelWorkbook = (quote) => {
           index: 4,
           mergeAcross: 1,
           styleId: "SectionValue",
-          value: quote.startDate ? `Start Date: ${quote.startDate}` : ""
+          value: ""
         })
       ],
       18
@@ -373,7 +359,7 @@ const buildExcelWorkbook = (quote) => {
           index: 4,
           mergeAcross: 1,
           styleId: "SectionValue",
-          value: quote.schedule?.length ? `${quote.schedule.length} scheduled task(s)` : ""
+          value: ""
         })
       ],
       18
@@ -580,7 +566,7 @@ const buildExcelWorkbook = (quote) => {
           index: 2,
           mergeAcross: 4,
           styleId: "NotesHeader",
-          value: "Notes & Terms"
+          value: "Terms"
         })
       ],
       18
@@ -594,7 +580,7 @@ const buildExcelWorkbook = (quote) => {
           index: 2,
           mergeAcross: 4,
           styleId: "NotesText",
-          value: notesAndTerms
+          value: quoteTerms
         })
       ],
       48
@@ -857,7 +843,7 @@ const buildPdfDocument = (quote, documentTitle) => {
     customer,
     quoteNumber,
     validForDays,
-    notesAndTerms,
+    quoteTerms,
     companySecondaryLine,
     contractorAddress,
     customerDetails,
@@ -906,7 +892,7 @@ const buildPdfDocument = (quote, documentTitle) => {
         </tr>
       `;
 
-  const notesMarkup = escapeHtml(notesAndTerms).replace(/\n/g, "<br />");
+  const termsMarkup = escapeHtml(quoteTerms).replace(/\n/g, "<br />");
 
   return `<!doctype html>
 <html lang="en">
@@ -1117,8 +1103,6 @@ const buildPdfDocument = (quote, documentTitle) => {
           <div class="bill-heading">SHIP TO</div>
           <p class="bill-line">${escapeHtml(quote.projectTitle || "Project Site")}</p>
           <p class="bill-line">${escapeHtml(quote.projectAddress || "")}</p>
-          <p class="bill-line">${escapeHtml(quote.startDate ? `Start Date: ${quote.startDate}` : "")}</p>
-          <p class="bill-line">${escapeHtml(quote.schedule?.length ? `${quote.schedule.length} scheduled task(s)` : "")}</p>
         </div>
 
         <div>
@@ -1153,8 +1137,8 @@ const buildPdfDocument = (quote, documentTitle) => {
 
       <div class="summary-grid">
         <div>
-          <h2 class="notes-title">Notes &amp; Terms</h2>
-          <div class="notes-box">${notesMarkup}</div>
+          <h2 class="notes-title">Terms</h2>
+          <div class="notes-box">${termsMarkup}</div>
         </div>
 
         <div>
