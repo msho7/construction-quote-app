@@ -52,8 +52,33 @@ const DEFAULT_CONTRACTOR_EXPIRY_SETTINGS = {
   amount: 6,
   unit: "months"
 };
+const COMPANY_TYPE_OPTIONS = [
+  { id: "general-renovation", label: "General Contractor / Renovation Company" },
+  { id: "plumbing", label: "Plumbing Company" },
+  { id: "electrical", label: "Electrical Company" },
+  { id: "hvac", label: "HVAC Company" },
+  { id: "roofing", label: "Roofing Company" },
+  { id: "drywall-taping", label: "Drywall / Taping Company" },
+  { id: "painting", label: "Painting Company" },
+  { id: "flooring", label: "Flooring Company" },
+  { id: "tile", label: "Tile Company" },
+  { id: "framing-carpentry", label: "Framing / Carpentry Company" },
+  { id: "finish-carpentry", label: "Finish Carpentry Company" },
+  { id: "concrete", label: "Concrete Company" },
+  { id: "landscaping", label: "Landscaping Company" },
+  { id: "masonry", label: "Masonry Company" },
+  { id: "excavation-sitework", label: "Excavation / Sitework Company" },
+  { id: "demolition", label: "Demolition Company" },
+  { id: "window-door", label: "Window / Door Company" },
+  { id: "cabinet-kitchen", label: "Cabinet / Kitchen Company" },
+  { id: "insulation", label: "Insulation Company" },
+  { id: "handy-person", label: "Handy Person / Property Maintenance" },
+  { id: "cleaning", label: "Cleaning / Post-Construction Cleaning" }
+];
+const DEFAULT_COMPANY_SETTINGS = {
+  companyType: COMPANY_TYPE_OPTIONS[0].id
+};
 const EMPTY_CONTRACTOR_PROFILE = {
-  companyType: "",
   companyName: "",
   contactName: "",
   trade: "",
@@ -83,7 +108,6 @@ const EMPTY_CUSTOMER_PROFILE = {
   notes: ""
 };
 const CONTRACTOR_PROFILE_FIELDS = [
-  "companyType",
   "companyName",
   "contactName",
   "trade",
@@ -121,6 +145,11 @@ const getContractorExpirySettings = (settings = {}) => {
     unit: settings.unit === "years" ? "years" : "months"
   };
 };
+const getCompanySettings = (settings = {}) => ({
+  companyType: COMPANY_TYPE_OPTIONS.some((option) => option.id === settings.companyType)
+    ? settings.companyType
+    : DEFAULT_COMPANY_SETTINGS.companyType
+});
 const getContractorExpiryMonths = (settings = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
   const expirySettings = getContractorExpirySettings(settings);
   return expirySettings.unit === "years"
@@ -240,18 +269,67 @@ const canContractorDoTrade = (contractor = {}, suggestedTrade = "") => {
     )
   );
 };
+const getTaskAssignmentRange = (task = {}) => {
+  const startDate = toDateInputValue(task.startDate);
+  if (!startDate) return null;
+
+  const endDate = toDateInputValue(task.endDate) || getScheduleEndDate(startDate, Number(task.duration || 1));
+  return {
+    startDate,
+    endDate: endDate || startDate
+  };
+};
+const doTaskDateRangesOverlap = (firstRange, secondRange) => {
+  if (!firstRange || !secondRange) return false;
+  return firstRange.startDate <= secondRange.endDate && secondRange.startDate <= firstRange.endDate;
+};
+const getContractorHasDateConflict = (contractorId, taskRange, contractorBookings) => {
+  if (!contractorId || !taskRange) return false;
+
+  return (contractorBookings.get(contractorId) || []).some((bookedRange) =>
+    doTaskDateRangesOverlap(taskRange, bookedRange)
+  );
+};
+const addContractorBooking = (contractorId, taskRange, contractorBookings) => {
+  if (!contractorId || !taskRange) return;
+
+  contractorBookings.set(contractorId, [
+    ...(contractorBookings.get(contractorId) || []),
+    taskRange
+  ]);
+};
 const assignContractorsToSchedule = (scheduleItems = [], contractors = []) => {
   const activeContractors = contractors.filter((contractor) => contractor.status !== "inactive");
   const assignmentCounts = new Map();
+  const contractorBookings = new Map();
 
   return normalizeScheduleItems(scheduleItems).map((task) => {
     const suggestedTrade = getSuggestedTradeForTask(task);
+    const taskRange = getTaskAssignmentRange(task);
     const existingAssignedContractor = activeContractors.find((contractor) => contractor.id && contractor.id === task.assignedContractorId);
-    if (existingAssignedContractor) {
+    const matchingContractors = activeContractors.filter((contractor) => canContractorDoTrade(contractor, suggestedTrade));
+    const getSortedContractors = (contractorOptions = []) =>
+      contractorOptions
+        .slice()
+        .sort((contractorA, contractorB) => {
+          const contractorAAssignments = assignmentCounts.get(contractorA.id) || 0;
+          const contractorBAssignments = assignmentCounts.get(contractorB.id) || 0;
+          if (contractorAAssignments !== contractorBAssignments) {
+            return contractorBAssignments - contractorAAssignments;
+          }
+
+          return getContractorDisplayName(contractorA).localeCompare(getContractorDisplayName(contractorB));
+        });
+
+    if (
+      existingAssignedContractor &&
+      !getContractorHasDateConflict(existingAssignedContractor.id, taskRange, contractorBookings)
+    ) {
       assignmentCounts.set(
         existingAssignedContractor.id,
         (assignmentCounts.get(existingAssignedContractor.id) || 0) + 1
       );
+      addContractorBooking(existingAssignedContractor.id, taskRange, contractorBookings);
 
       return {
         ...task,
@@ -262,21 +340,17 @@ const assignContractorsToSchedule = (scheduleItems = [], contractors = []) => {
       };
     }
 
-    const matchingContractors = activeContractors.filter((contractor) => canContractorDoTrade(contractor, suggestedTrade));
-    const assignedContractor = matchingContractors
-      .slice()
-      .sort((contractorA, contractorB) => {
-        const contractorAAssignments = assignmentCounts.get(contractorA.id) || 0;
-        const contractorBAssignments = assignmentCounts.get(contractorB.id) || 0;
-        if (contractorAAssignments !== contractorBAssignments) {
-          return contractorBAssignments - contractorAAssignments;
-        }
-
-        return getContractorDisplayName(contractorA).localeCompare(getContractorDisplayName(contractorB));
-      })[0];
+    const availableMatchingContractors = matchingContractors.filter(
+      (contractor) => !getContractorHasDateConflict(contractor.id, taskRange, contractorBookings)
+    );
+    const assignedContractor =
+      getSortedContractors(availableMatchingContractors)[0] ||
+      existingAssignedContractor ||
+      getSortedContractors(matchingContractors)[0];
 
     if (assignedContractor?.id) {
       assignmentCounts.set(assignedContractor.id, (assignmentCounts.get(assignedContractor.id) || 0) + 1);
+      addContractorBooking(assignedContractor.id, taskRange, contractorBookings);
     }
 
     return {
@@ -768,8 +842,15 @@ export default function ConstructionQuoteApp() {
       safeJsonParse(localStorage.getItem("contractorExpirySettings"), DEFAULT_CONTRACTOR_EXPIRY_SETTINGS)
     );
   });
+  const [companySettings, setCompanySettings] = useState(() => {
+    if (typeof window === "undefined") return { ...DEFAULT_COMPANY_SETTINGS };
+    return getCompanySettings(
+      safeJsonParse(localStorage.getItem("companySettings"), DEFAULT_COMPANY_SETTINGS)
+    );
+  });
 
   const [currentPage, setCurrentPage] = useState("dashboard");
+  const [navigationOpen, setNavigationOpen] = useState(true);
   const [savedContractors, setSavedContractors] = useState(getInitialSavedContractors);
   const [contractorProfile, setContractorProfile] = useState(getInitialContractorProfile);
   const [contractorDraft, setContractorDraft] = useState(getInitialContractorProfile);
@@ -959,6 +1040,13 @@ export default function ConstructionQuoteApp() {
       localStorage.setItem("contractorExpirySettings", JSON.stringify(normalizedSettings));
     }
   }, [contractorExpirySettings]);
+
+  useEffect(() => {
+    const normalizedSettings = getCompanySettings(companySettings);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("companySettings", JSON.stringify(normalizedSettings));
+    }
+  }, [companySettings]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -2421,23 +2509,26 @@ export default function ConstructionQuoteApp() {
               </div>
             ) : null}
           </div>
-          {isCurrentQuoteLocked && activeQuoteRecord ? (
-            <div className="button-row">
+          <div className="button-row">
+            <Button variant="secondary" onClick={openQuotesLanding}>
+              Back To Quotes
+            </Button>
+            {isCurrentQuoteLocked && activeQuoteRecord ? (
               <Button variant="secondary" onClick={() => openApprovedQuoteSchedule(activeQuoteRecord.id)}>
                 View Schedule
               </Button>
-            </div>
-          ) : null}
-          {!isCurrentQuoteApproved && !isCurrentQuoteLocked ? (
-            <div className="button-row">
-              <Button variant="secondary" onClick={markQuoteApproved}>✅ Mark Approved</Button>
-              {activeQuoteRecord && (activeQuoteRecord.status || "open") === "open" ? (
-                <Button variant="danger" onClick={() => deleteUnapprovedQuote(activeQuoteRecord)}>
-                  Delete Quote
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
+            ) : null}
+            {!isCurrentQuoteApproved && !isCurrentQuoteLocked ? (
+              <>
+                <Button variant="secondary" onClick={markQuoteApproved}>✅ Mark Approved</Button>
+                {activeQuoteRecord && (activeQuoteRecord.status || "open") === "open" ? (
+                  <Button variant="danger" onClick={() => deleteUnapprovedQuote(activeQuoteRecord)}>
+                    Delete Quote
+                  </Button>
+                ) : null}
+              </>
+            ) : null}
+          </div>
         </div>
 
         <div className="grid three-col">
@@ -2743,6 +2834,7 @@ export default function ConstructionQuoteApp() {
       onReorderDraftScheduleTasks={reorderDraftScheduleTasks}
       onReorderQuoteScheduleTasks={(quote, fromIndex, toIndex, scheduleSnapshot) =>
         reorderSavedQuoteScheduleTasks(quote.id, fromIndex, toIndex, scheduleSnapshot)}
+      onOpenQuote={loadQuote}
       onOpenQuoteSchedule={(quote) => openApprovedQuoteSchedule(quote.id)}
       onBackToLanding={openScheduleLanding}
     />
@@ -3056,6 +3148,7 @@ export default function ConstructionQuoteApp() {
         selectedContractorId={selectedContractorId}
         isEditingContractor={isEditingContractor}
         showContractorNotes={showContractorNotes}
+        companyType={companySettings.companyType}
         contractorExpirySettings={contractorExpirySettings}
         onUpdateContractorProfile={updateContractorProfile}
         onSaveContractor={saveContractorProfile}
@@ -3103,6 +3196,33 @@ export default function ConstructionQuoteApp() {
           <Button variant={themeMode === "dark" ? "primary" : "secondary"} onClick={() => setThemeMode("dark")}>Dark</Button>
           <Button variant={themeMode === "system" ? "primary" : "secondary"} onClick={() => setThemeMode("system")}>System</Button>
         </div>
+      </div>
+
+      <div className="settings-group">
+        <div className="settings-expiry-row">
+          <div className="settings-row-label">Company Type</div>
+          <div className="settings-expiry-controls">
+            <label className="settings-company-field">
+              Trade list
+              <Select
+                value={companySettings.companyType}
+                onChange={(event) =>
+                  setCompanySettings(getCompanySettings({
+                    ...companySettings,
+                    companyType: event.target.value
+                  }))}
+              >
+                {COMPANY_TYPE_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </Select>
+            </label>
+          </div>
+        </div>
+
+        <p className="row-subtitle">
+          This controls which trade options appear when adding or editing contractors.
+        </p>
       </div>
 
       <div className="settings-group">
@@ -3185,8 +3305,10 @@ export default function ConstructionQuoteApp() {
                 localStorage.removeItem("savedRoomTemplates");
                 localStorage.removeItem("savedQuotes");
                 localStorage.removeItem("contractorExpirySettings");
+                localStorage.removeItem("companySettings");
               }
               const defaultContractorExpirySettings = { ...DEFAULT_CONTRACTOR_EXPIRY_SETTINGS };
+              setCompanySettings({ ...DEFAULT_COMPANY_SETTINGS });
               setContractorExpirySettings(defaultContractorExpirySettings);
               setContractorProfile(normalizeContractorProfile({}, defaultContractorExpirySettings));
               setSavedContractors([]);
@@ -3220,35 +3342,56 @@ export default function ConstructionQuoteApp() {
   return (
     <>
       <style>{APP_STYLES}</style>
-      <div className={dark ? "app-shell dark" : "app-shell"}>
+      <div
+        className={[
+          "app-shell",
+          dark ? "dark" : "",
+          navigationOpen ? "navigation-open" : "navigation-closed"
+        ].filter(Boolean).join(" ")}
+      >
         <aside className="sidebar">
-          <div>
-            <h2 className="sidebar-title">🏗️</h2>
-            <p className="sidebar-subtitle">Construction quoting and scheduling</p>
+          <div className="sidebar-header">
+            {navigationOpen ? (
+              <div>
+                <h2 className="sidebar-title">🏗️</h2>
+                <p className="sidebar-subtitle">Construction quoting and scheduling</p>
+              </div>
+            ) : null}
+            <button
+              className="sidebar-toggle"
+              type="button"
+              onClick={() => setNavigationOpen((open) => !open)}
+              aria-label={navigationOpen ? "Close navigation" : "Open navigation"}
+              aria-expanded={navigationOpen}
+            >
+              {navigationOpen ? "‹" : "☰"}
+            </button>
           </div>
 
-          <nav className="nav-list">
-            {PAGE_OPTIONS.map((page) => (
-              <button
-                key={page.id}
-                className={`nav-item ${currentPage === page.id ? "active" : ""}`}
-                type="button"
-                onClick={() => {
-                  if (page.id === "quotes") {
-                    openQuotesLanding();
-                    return;
-                  }
-                  if (page.id === "schedule") {
-                    openScheduleLanding();
-                    return;
-                  }
-                  setCurrentPage(page.id);
-                }}
-              >
-                {page.label}
-              </button>
-            ))}
-          </nav>
+          {navigationOpen ? (
+            <nav className="nav-list">
+              {PAGE_OPTIONS.map((page) => (
+                <button
+                  key={page.id}
+                  className={`nav-item ${currentPage === page.id ? "active" : ""}`}
+                  type="button"
+                  onClick={() => {
+                    if (page.id === "quotes") {
+                      openQuotesLanding();
+                      return;
+                    }
+                    if (page.id === "schedule") {
+                      openScheduleLanding();
+                      return;
+                    }
+                    setCurrentPage(page.id);
+                  }}
+                >
+                  {page.label}
+                </button>
+              ))}
+            </nav>
+          ) : null}
         </aside>
 
         <main className="main-content">

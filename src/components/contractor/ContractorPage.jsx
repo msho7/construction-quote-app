@@ -254,6 +254,7 @@ export default function ContractorPage({
   selectedContractorId,
   isEditingContractor,
   showContractorNotes,
+  companyType,
   contractorExpirySettings,
   onUpdateContractorProfile,
   onSaveContractor,
@@ -264,7 +265,7 @@ export default function ContractorPage({
   onToggleContractorNotes,
   onOpenQuotes
 }) {
-  const selectedTradeProfileId = contractorDraft.companyType || CONTRACTOR_TRADE_PROFILES[0]?.id || "";
+  const selectedTradeProfileId = companyType || CONTRACTOR_TRADE_PROFILES[0]?.id || "";
   const selectedTradeProfile =
     CONTRACTOR_TRADE_PROFILES.find((profile) => profile.id === selectedTradeProfileId) ||
     CONTRACTOR_TRADE_PROFILES[0];
@@ -320,14 +321,6 @@ export default function ContractorPage({
             onChange={(e) => onUpdateContractorProfile("contactName", e.target.value)}
           />
         </label>
-        <label>
-          Company Type
-          <Select value={selectedTradeProfileId} onChange={(e) => onUpdateContractorProfile("companyType", e.target.value)}>
-            {CONTRACTOR_TRADE_PROFILES.map((profile) => (
-              <option key={profile.id} value={profile.id}>{profile.label}</option>
-            ))}
-          </Select>
-        </label>
         <div className="contractor-trade-onboarding span-two">
           <div className="contractor-trade-field-label">Trade</div>
           <details className="contractor-trade-dropdown">
@@ -336,20 +329,22 @@ export default function ContractorPage({
               <span>Trade ▾</span>
             </summary>
 
-            <div className="button-row contractor-trade-actions">
-              <Button
-                variant="secondary"
-                onClick={() => addTrades([...selectedTradeProfile.defaultTrades, ...selectedTradeProfile.optionalTrades])}
-              >
-                Select All
-              </Button>
-              <Button variant="secondary" onClick={() => updateTrades([])}>
-                Clear
-              </Button>
-            </div>
+            <div className="contractor-trade-menu">
+              <div className="button-row contractor-trade-actions">
+                <Button
+                  variant="secondary"
+                  onClick={() => addTrades([...selectedTradeProfile.defaultTrades, ...selectedTradeProfile.optionalTrades])}
+                >
+                  Select All
+                </Button>
+                <Button variant="secondary" onClick={() => updateTrades([])}>
+                  Clear
+                </Button>
+              </div>
 
-            {renderTradeChecklist("Default", selectedTradeProfile.defaultTrades)}
-            {renderTradeChecklist("Optional", selectedTradeProfile.optionalTrades)}
+              {renderTradeChecklist("Default", selectedTradeProfile.defaultTrades)}
+              {renderTradeChecklist("Optional", selectedTradeProfile.optionalTrades)}
+            </div>
           </details>
         </div>
         <label>

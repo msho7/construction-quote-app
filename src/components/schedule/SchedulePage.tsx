@@ -40,6 +40,7 @@ type SchedulePageProps = {
   onUpdateQuoteScheduleStartDate?: (quote: SavedQuote, value: string, scheduleSnapshot: ScheduleItem[]) => void;
   onReorderDraftScheduleTasks?: (fromIndex: number, toIndex: number, scheduleSnapshot: ScheduleItem[]) => void;
   onReorderQuoteScheduleTasks?: (quote: SavedQuote, fromIndex: number, toIndex: number, scheduleSnapshot: ScheduleItem[]) => void;
+  onOpenQuote?: (quote: SavedQuote) => void;
   onOpenQuoteSchedule?: (quote: SavedQuote) => void;
   onBackToLanding?: () => void;
 };
@@ -171,8 +172,6 @@ export default function SchedulePage({
   currentDraftProjectAddress = "",
   currentDraftTotal = 0,
   isViewingDraftSchedule = false,
-  onGenerateDraftSchedule,
-  onGenerateQuoteSchedule,
   onUpdateDraftScheduleTask,
   onUpdateQuoteScheduleTask,
   onMarkDraftTaskCompleted,
@@ -185,6 +184,7 @@ export default function SchedulePage({
   onUpdateQuoteScheduleStartDate,
   onReorderDraftScheduleTasks,
   onReorderQuoteScheduleTasks,
+  onOpenQuote,
   onOpenQuoteSchedule,
   onBackToLanding
 }: SchedulePageProps) {
@@ -541,26 +541,24 @@ export default function SchedulePage({
         <Card dark={dark}>
           <div className="section-header">
             <div>
-              <h3>{detailTitle}</h3>
+              {selectedQuoteSchedule && onOpenQuote ? (
+                <button
+                  type="button"
+                  className="inline-link-button schedule-title-link"
+                  onClick={() => onOpenQuote(selectedQuoteSchedule)}
+                >
+                  {detailTitle}
+                </button>
+              ) : (
+                <h3>{detailTitle}</h3>
+              )}
               <p className="row-subtitle">{detailSubtitle}</p>
             </div>
 
             <div className="button-row">
-              {shouldShowDraftDetail && onGenerateDraftSchedule ? (
-                <Button variant="secondary" onClick={onGenerateDraftSchedule}>
-                  Regenerate Schedule
-                </Button>
-              ) : null}
-
-              {!shouldShowDraftDetail && selectedQuoteSchedule && onGenerateQuoteSchedule && !isSelectedQuoteLocked ? (
-                <Button variant="secondary" onClick={() => onGenerateQuoteSchedule(selectedQuoteSchedule)}>
-                  Generate Schedule
-                </Button>
-              ) : null}
-
               {onBackToLanding ? (
                 <Button variant="secondary" onClick={onBackToLanding}>
-                  Back To Approved Quotes
+                  Back To Schedules
                 </Button>
               ) : null}
             </div>
@@ -724,14 +722,14 @@ export default function SchedulePage({
                             }
                           >
                             {task.assignedContractorName
-                              ? `${task.assignedContractorName}${task.assignedContractorTrade ? ` (${task.assignedContractorTrade})` : ""}`
+                              ? task.assignedContractorName
                               : task.suggestedTrade
                                 ? `Choose ${task.suggestedTrade} contractor`
                                 : "Choose contractor"}
                           </button>
                         ) : (
                           task.assignedContractorName
-                            ? `${task.assignedContractorName}${task.assignedContractorTrade ? ` (${task.assignedContractorTrade})` : ""}`
+                            ? task.assignedContractorName
                             : task.suggestedTrade
                               ? `Suggested ${task.suggestedTrade}`
                               : "No matching contractor"
@@ -752,7 +750,6 @@ export default function SchedulePage({
                                   onClick={() => assignTaskContractor(index, contractor.id || "")}
                                 >
                                   {getContractorDisplayName(contractor)}
-                                  {contractor.trade ? ` - ${contractor.trade}` : ""}
                                 </button>
                               ))
                             ) : (
@@ -954,12 +951,6 @@ export default function SchedulePage({
               Review approved quotes with confirmed start dates, then open a quote to view its full schedule.
             </p>
           </div>
-
-          {onGenerateDraftSchedule ? (
-            <Button variant="secondary" onClick={onGenerateDraftSchedule}>
-              Generate Schedule
-            </Button>
-          ) : null}
         </div>
       </Card>
 
@@ -987,7 +978,17 @@ export default function SchedulePage({
                 <div key={quote.id} className="list-row quote-overview-row">
                   <div className="quote-overview-main">
                     <div className="quote-overview-heading">
-                      <div className="row-title">{quote.projectTitle}</div>
+                      {onOpenQuoteSchedule ? (
+                        <button
+                          type="button"
+                          className="inline-link-button row-title schedule-quote-title-link"
+                          onClick={() => onOpenQuoteSchedule(quote)}
+                        >
+                          {quote.projectTitle}
+                        </button>
+                      ) : (
+                        <div className="row-title">{quote.projectTitle}</div>
+                      )}
                       <span className={`status-pill ${scheduleStatus.className}`}>
                         {scheduleStatus.label}
                       </span>
@@ -1005,12 +1006,6 @@ export default function SchedulePage({
                     </div>
 
                     <div className="button-row quote-overview-actions">
-                      {onGenerateQuoteSchedule ? (
-                        <Button variant="secondary" onClick={() => onGenerateQuoteSchedule(quote)}>
-                          Generate Schedule
-                        </Button>
-                      ) : null}
-
                       <Button variant="secondary" onClick={() => onOpenQuoteSchedule?.(quote)}>
                         View Schedule
                       </Button>

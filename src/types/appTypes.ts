@@ -35,7 +35,6 @@ export interface ContractorProfile {
   id?: string;
   createdAt?: string;
   updatedAt?: string;
-  companyType?: string;
   companyName: string;
   contactName: string;
   trade: string;
