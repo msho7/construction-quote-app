@@ -67,7 +67,7 @@ export const APP_STYLES = `
   }
 
   .sidebar {
-    padding: 24px;
+    padding: 24px 0;
     border-right: 1px solid #d1d5db;
     background: #ffffff;
     display: flex;
@@ -76,7 +76,7 @@ export const APP_STYLES = `
   }
   .app-shell.navigation-closed .sidebar {
     align-items: center;
-    padding: 20px 12px;
+    padding: 20px 0;
   }
   .app-shell.dark .sidebar {
     background: #111827;
@@ -87,10 +87,12 @@ export const APP_STYLES = `
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
+    padding: 0 24px;
   }
   .app-shell.navigation-closed .sidebar-header {
     justify-content: center;
     width: 100%;
+    padding: 0 12px;
   }
   .sidebar-title { margin: 0; font-size: 1.5rem; }
   .sidebar-subtitle { margin: 8px 0 0; color: #6b7280; line-height: 1.4; }
@@ -117,9 +119,9 @@ export const APP_STYLES = `
     color: #e5e7eb;
   }
 
-  .nav-list { display: flex; flex-direction: column; gap: 10px; }
+  .nav-list { display: flex; flex-direction: column; gap: 4px; padding: 0 12px; }
   .nav-item {
-    width: 100%; text-align: left; padding: 12px 14px; border-radius: 10px;
+    width: 100%; text-align: left; padding: 10px 16px; border-radius: 8px;
     border: 1px solid transparent; background: transparent; color: inherit;
     cursor: pointer; font-size: 0.95rem;
   }
