@@ -1,9 +1,23 @@
 export const APP_STYLES = `
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: Inter, Arial, sans-serif; }
+  html {
+    background: #f3f4f6;
+  }
+  body {
+    margin: 0;
+    font-family: Inter, Arial, sans-serif;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: #f3f4f6;
+  }
+  #root {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
 
   .app-shell {
     min-height: 100vh;
+    min-height: 100dvh;
     display: grid;
     grid-template-columns: 260px 1fr;
     background: #f3f4f6;
@@ -15,6 +29,10 @@ export const APP_STYLES = `
   .app-shell.dark {
     background: #0f172a;
     color: #e5e7eb;
+  }
+  html:has(.app-shell.dark),
+  body:has(.app-shell.dark) {
+    background: #0f172a;
   }
   .app-notification {
     position: fixed;
@@ -1578,11 +1596,20 @@ export const APP_STYLES = `
   @media (max-width: 1100px) {
     .app-shell,
     .app-shell.navigation-closed { grid-template-columns: 1fr; }
-    .sidebar { border-right: none; border-bottom: 1px solid #d1d5db; }
+    .sidebar {
+      border-right: none;
+      border-bottom: 1px solid #d1d5db;
+      padding-top: max(16px, env(safe-area-inset-top));
+      padding-left: max(16px, env(safe-area-inset-left));
+      padding-right: max(16px, env(safe-area-inset-right));
+    }
     .app-shell.navigation-closed .sidebar {
       align-items: flex-end;
       gap: 0;
-      padding: 10px 16px;
+      padding-top: max(8px, env(safe-area-inset-top));
+      padding-right: max(8px, env(safe-area-inset-right));
+      padding-bottom: 8px;
+      padding-left: max(16px, env(safe-area-inset-left));
     }
     .app-shell.dark .sidebar { border-bottom-color: #374151; }
     .app-shell.navigation-closed .sidebar-header {
@@ -1599,8 +1626,22 @@ export const APP_STYLES = `
   }
 
   @media (max-width: 760px) {
-    .main-content, .sidebar { padding: 16px; }
-    .app-shell.navigation-closed .sidebar { padding: 10px 16px; }
+    .main-content {
+      padding: 16px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    }
+    .sidebar {
+      padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left));
+    }
+    .app-shell.navigation-closed .sidebar {
+      padding-top: max(8px, env(safe-area-inset-top));
+      padding-right: max(8px, env(safe-area-inset-right));
+      padding-bottom: 8px;
+      padding-left: max(16px, env(safe-area-inset-left));
+    }
+    .app-shell.navigation-closed .sidebar-toggle {
+      width: 40px;
+      height: 40px;
+    }
     .sidebar-header {
       align-items: center;
     }

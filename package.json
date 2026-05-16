@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "db:ping": "node --env-file=.env.local server/check-mongodb.js",
     "mobile:sync": "npm run build && cap sync",
     "mobile:ios": "npm run mobile:sync && cap open ios",
     "mobile:android": "npm run mobile:sync && cap open android",
@@ -19,6 +20,7 @@
     "@capacitor/ios": "^8.3.4",
     "framer-motion": "^12.35.1",
     "lucide-react": "^0.577.0",
+    "mongodb": "^7.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

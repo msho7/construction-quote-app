@@ -10,6 +10,17 @@ npm run build
 npm run lint
 ```
 
+## MongoDB
+
+Create `.env.local` from `.env.example`, then set your private MongoDB Atlas URI.
+
+```sh
+cp .env.example .env.local
+npm run db:ping
+```
+
+Keep `.env.local` private. It is ignored by git.
+
 ## Mobile
 
 The app is wrapped with Capacitor for iOS and Android.
