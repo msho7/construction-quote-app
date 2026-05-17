@@ -21,6 +21,15 @@ npm run db:ping
 
 Keep `.env.local` private. It is ignored by git.
 
+To use the in-app Server page, run the API server and Vite app in two terminals:
+
+```sh
+npm run server
+npm run dev
+```
+
+Saved app data is stored in MongoDB in the `app_state` collection. The app keeps localStorage updated as a fallback cache, but quotes, price list, room templates, customers, contractors, and settings sync through the API server when `npm run server` is running.
+
 ## Mobile
 
 The app is wrapped with Capacitor for iOS and Android.

@@ -14,6 +14,7 @@ export const PAGE_OPTIONS = [
   { id: "pricelist", label: "Price List" },
   { id: "contractor", label: "Contractors" },
   { id: "customer", label: "Customers" },
+  { id: "server", label: "Server" },
   { id: "settings", label: "Settings" }
 ];
 

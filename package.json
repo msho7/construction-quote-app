@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "server": "node --env-file-if-exists=.env.local server/api.js",
     "build": "vite build",
     "lint": "eslint .",
-    "db:ping": "node --env-file=.env.local server/check-mongodb.js",
+    "db:ping": "node --env-file-if-exists=.env.local server/check-mongodb.js",
     "mobile:sync": "npm run build && cap sync",
     "mobile:ios": "npm run mobile:sync && cap open ios",
     "mobile:android": "npm run mobile:sync && cap open android",

@@ -1512,6 +1512,23 @@ export const APP_STYLES = `
     flex-wrap: nowrap;
   }
   .settings-group label { font-weight: 700; }
+  .server-actions {
+    margin-top: 18px;
+  }
+  .server-error-message {
+    padding: 12px;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    background: #fef2f2;
+    color: #991b1b;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  .app-shell.dark .server-error-message {
+    border-color: rgba(248, 113, 113, 0.35);
+    background: rgba(127, 29, 29, 0.25);
+    color: #fca5a5;
+  }
   .settings-row-label {
     font-weight: 700;
     line-height: 1.2;

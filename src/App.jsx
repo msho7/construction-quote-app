@@ -829,6 +829,47 @@ const mergeSavedRoomTemplatesWithBuiltIns = (templates = []) => {
   return [...missingBuiltIns, ...normalizedTemplates];
 };
 
+const APP_STATE_KEYS = [
+  "companySettings",
+  "contractorExpirySettings",
+  "contractorProfile",
+  "customerProfile",
+  "navigationOpen",
+  "priceList",
+  "savedContractors",
+  "savedCustomers",
+  "savedQuotes",
+  "savedRoomTemplates",
+  "themeMode"
+];
+
+const persistAppStateToLocalStorage = (state = {}) => {
+  if (typeof window === "undefined") return;
+
+  APP_STATE_KEYS.forEach((key) => {
+    if (!Object.prototype.hasOwnProperty.call(state, key)) return;
+
+    const value = state[key];
+    localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+  });
+};
+
+const normalizeRemoteSavedQuotes = (quotes = []) =>
+  normalizeSavedQuoteReferences(Array.isArray(quotes) ? quotes : []).map((quote) => ({
+    ...quote,
+    schedule: normalizeScheduleItems(quote.schedule || [])
+  }));
+
+const normalizeRemoteSavedContractors = (contractors = []) =>
+  (Array.isArray(contractors) ? contractors : [])
+    .map((profile) => normalizeContractorProfile(profile))
+    .filter((profile) => hasContractorProfileData(profile));
+
+const normalizeRemoteSavedCustomers = (customers = []) =>
+  (Array.isArray(customers) ? customers : [])
+    .map((profile) => normalizeCustomerRecord(profile))
+    .filter((profile) => hasCustomerProfileData(profile));
+
 export default function ConstructionQuoteApp() {
   const systemDark = useDarkMode();
   const [themeMode, setThemeMode] = useState(() => {
@@ -915,6 +956,19 @@ export default function ConstructionQuoteApp() {
   const [quotesCustomerFilter, setQuotesCustomerFilter] = useState(null);
   const [quotesInitialProjectList, setQuotesInitialProjectList] = useState("");
   const [notification, setNotification] = useState(null);
+  const [serverStatus, setServerStatus] = useState({
+    loading: false,
+    data: null,
+    error: ""
+  });
+  const [storageStatus, setStorageStatus] = useState({
+    loading: true,
+    connected: false,
+    saving: false,
+    lastSavedAt: "",
+    error: ""
+  });
+  const [remoteStorageReady, setRemoteStorageReady] = useState(false);
   const notificationTimeoutRef = useRef(null);
 
   const showNotification = (message, variant = "success") => {
@@ -1008,66 +1062,177 @@ export default function ConstructionQuoteApp() {
   };
 
   useEffect(() => {
-    if (typeof window !== "undefined") localStorage.setItem("priceList", JSON.stringify(priceList));
-  }, [priceList]);
+    let cancelled = false;
+
+    const loadRemoteAppState = async () => {
+      try {
+        const response = await fetch("/api/app-state");
+        const payload = await response.json();
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || "Could not load MongoDB app data.");
+        }
+
+        if (cancelled) return;
+
+        const remoteState = payload.state || {};
+
+        if (Object.prototype.hasOwnProperty.call(remoteState, "themeMode")) {
+          setThemeMode(["light", "dark", "system"].includes(remoteState.themeMode) ? remoteState.themeMode : "system");
+        }
+
+        if (Object.prototype.hasOwnProperty.call(remoteState, "navigationOpen")) {
+          setNavigationOpen(Boolean(remoteState.navigationOpen));
+        }
+
+        if (Object.prototype.hasOwnProperty.call(remoteState, "contractorExpirySettings")) {
+          setContractorExpirySettings(getContractorExpirySettings(remoteState.contractorExpirySettings));
+        }
+
+        if (Object.prototype.hasOwnProperty.call(remoteState, "companySettings")) {
+          setCompanySettings(getCompanySettings(remoteState.companySettings));
+        }
+
+        if (Object.prototype.hasOwnProperty.call(remoteState, "savedContractors")) {
+          setSavedContractors(normalizeRemoteSavedContractors(remoteState.savedContractors));
+        }
+
+        if (Object.prototype.hasOwnProperty.call(remoteState, "contractorProfile")) {
+          setContractorProfile(normalizeContractorProfile(remoteState.contractorProfile));
+          setContractorDraft(normalizeContractorProfile(remoteState.contractorProfile));
+        }
+
+        if (Object.prototype.hasOwnProperty.call(remoteState, "savedCustomers")) {
+          setSavedCustomers(normalizeRemoteSavedCustomers(remoteState.savedCustomers));
+        }
+
+        if (Object.prototype.hasOwnProperty.call(remoteState, "customerProfile")) {
+          setCustomerProfile(normalizeCustomerRecord(remoteState.customerProfile));
+          setCustomerDraft(normalizeCustomerRecord(remoteState.customerProfile));
+        }
+
+        if (Object.prototype.hasOwnProperty.call(remoteState, "savedQuotes")) {
+          setSavedQuotes(normalizeRemoteSavedQuotes(remoteState.savedQuotes));
+        }
+
+        if (Object.prototype.hasOwnProperty.call(remoteState, "priceList")) {
+          setPriceList(Array.isArray(remoteState.priceList) ? remoteState.priceList : []);
+        }
+
+        if (Object.prototype.hasOwnProperty.call(remoteState, "savedRoomTemplates")) {
+          setSavedRoomTemplates(mergeSavedRoomTemplatesWithBuiltIns(
+            Array.isArray(remoteState.savedRoomTemplates) ? remoteState.savedRoomTemplates : []
+          ));
+        }
+
+        setStorageStatus({
+          loading: false,
+          connected: true,
+          saving: false,
+          lastSavedAt: "",
+          error: ""
+        });
+        setRemoteStorageReady(true);
+      } catch (error) {
+        if (cancelled) return;
+
+        setStorageStatus({
+          loading: false,
+          connected: false,
+          saving: false,
+          lastSavedAt: "",
+          error: error.message
+        });
+        setRemoteStorageReady(true);
+      }
+    };
+
+    loadRemoteAppState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const appStatePayload = useMemo(() => ({
+    companySettings,
+    contractorExpirySettings: getContractorExpirySettings(contractorExpirySettings),
+    contractorProfile,
+    customerProfile,
+    navigationOpen,
+    priceList,
+    savedContractors,
+    savedCustomers,
+    savedQuotes,
+    savedRoomTemplates: savedRoomTemplates.filter((template) => !template.builtIn),
+    themeMode
+  }), [
+    companySettings,
+    contractorExpirySettings,
+    contractorProfile,
+    customerProfile,
+    navigationOpen,
+    priceList,
+    savedContractors,
+    savedCustomers,
+    savedQuotes,
+    savedRoomTemplates,
+    themeMode
+  ]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("savedRoomTemplates", JSON.stringify(savedRoomTemplates));
-    }
-  }, [savedRoomTemplates]);
+    persistAppStateToLocalStorage(appStatePayload);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("savedContractors", JSON.stringify(savedContractors));
-    }
-  }, [savedContractors]);
+    if (!remoteStorageReady) return undefined;
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("savedCustomers", JSON.stringify(savedCustomers));
-    }
-  }, [savedCustomers]);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      setStorageStatus((previousStatus) => ({
+        ...previousStatus,
+        saving: true,
+        error: ""
+      }));
 
-  useEffect(() => {
-    if (typeof window !== "undefined") localStorage.setItem("savedQuotes", JSON.stringify(savedQuotes));
-  }, [savedQuotes]);
+      try {
+        const response = await fetch("/api/app-state", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ state: appStatePayload }),
+          signal: controller.signal
+        });
+        const payload = await response.json();
 
-  useEffect(() => {
-    if (typeof window !== "undefined") localStorage.setItem("themeMode", themeMode);
-  }, [themeMode]);
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || "Could not save app data to MongoDB.");
+        }
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("navigationOpen", String(navigationOpen));
-    }
-  }, [navigationOpen]);
+        setStorageStatus({
+          loading: false,
+          connected: true,
+          saving: false,
+          lastSavedAt: payload.updatedAt || new Date().toISOString(),
+          error: ""
+        });
+      } catch (error) {
+        if (error.name === "AbortError") return;
 
-  useEffect(() => {
-    const normalizedSettings = getContractorExpirySettings(contractorExpirySettings);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("contractorExpirySettings", JSON.stringify(normalizedSettings));
-    }
-  }, [contractorExpirySettings]);
+        setStorageStatus((previousStatus) => ({
+          ...previousStatus,
+          loading: false,
+          connected: false,
+          saving: false,
+          error: error.message
+        }));
+      }
+    }, 500);
 
-  useEffect(() => {
-    const normalizedSettings = getCompanySettings(companySettings);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("companySettings", JSON.stringify(normalizedSettings));
-    }
-  }, [companySettings]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("contractorProfile", JSON.stringify(contractorProfile));
-    }
-  }, [contractorProfile]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("customerProfile", JSON.stringify(customerProfile));
-    }
-  }, [customerProfile]);
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [appStatePayload, remoteStorageReady]);
 
   useEffect(
     () => () => {
@@ -3195,6 +3360,157 @@ export default function ConstructionQuoteApp() {
     />
   );
 
+  const checkServerMongoConnection = async () => {
+    setServerStatus({
+      loading: true,
+      data: null,
+      error: ""
+    });
+
+    try {
+      const response = await fetch("/api/mongodb/status");
+      const payload = await response.json();
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "MongoDB connection failed.");
+      }
+
+      setServerStatus({
+        loading: false,
+        data: payload,
+        error: ""
+      });
+      showNotification("MongoDB connection verified.");
+    } catch (error) {
+      setServerStatus({
+        loading: false,
+        data: null,
+        error: error.message
+      });
+      showNotification("MongoDB connection failed.", "warning");
+    }
+  };
+
+  const renderServer = () => {
+    const statusLabel = serverStatus.loading
+      ? "Checking"
+      : serverStatus.data?.ok
+        ? "Connected"
+        : serverStatus.error
+          ? "Failed"
+          : "Not Checked";
+    const statusClass = serverStatus.data?.ok ? "active" : serverStatus.error ? "delayed" : "waiting";
+    const storageLabel = storageStatus.loading
+      ? "Loading"
+      : storageStatus.saving
+        ? "Saving"
+        : storageStatus.connected
+          ? "Saving To MongoDB"
+          : "Local Fallback";
+    const storageClass = storageStatus.connected ? "active" : storageStatus.error ? "delayed" : "waiting";
+
+    return (
+      <>
+        <div className="stats-grid">
+          <Card dark={dark}>
+            <div className="stat-label">API Server</div>
+            <div className="stat-value">localhost:3001</div>
+          </Card>
+          <Card dark={dark}>
+            <div className="stat-label">App Data</div>
+            <div className="stat-value">{storageLabel}</div>
+          </Card>
+          <Card dark={dark}>
+            <div className="stat-label">Database</div>
+            <div className="stat-value">{serverStatus.data?.databaseName || "Not loaded"}</div>
+          </Card>
+          <Card dark={dark}>
+            <div className="stat-label">Collections</div>
+            <div className="stat-value">{serverStatus.data?.collections?.length || 0}</div>
+          </Card>
+        </div>
+
+        <div className="two-col-layout">
+          <Card dark={dark}>
+            <div className="section-header">
+              <div>
+                <h3>Server Connection</h3>
+                <p className="row-subtitle">Start the API server so app data loads from and saves to MongoDB through your .env.local settings.</p>
+              </div>
+              <span className={`status-pill ${statusClass}`}>{statusLabel}</span>
+            </div>
+
+            <div className="details-list">
+              <div><strong>API command:</strong> npm run server</div>
+              <div><strong>Frontend command:</strong> npm run dev</div>
+              <div><strong>Status endpoint:</strong> /api/mongodb/status</div>
+              <div><strong>Data endpoint:</strong> /api/app-state</div>
+              <div><strong>Mongo collection:</strong> app_state</div>
+              <div><strong>Required env:</strong> MONGODB_URI</div>
+              <div><strong>Optional env:</strong> MONGODB_DB</div>
+            </div>
+
+            <div className="button-row server-actions">
+              <Button onClick={checkServerMongoConnection} disabled={serverStatus.loading}>
+                {serverStatus.loading ? "Checking..." : "Check MongoDB"}
+              </Button>
+            </div>
+          </Card>
+
+          <Card dark={dark}>
+            <div className="section-header">
+              <div>
+                <h3>MongoDB App Data</h3>
+                <p className="row-subtitle">Quotes, price list, customers, contractors, templates, and settings are saved through the server.</p>
+              </div>
+              <span className={`status-pill ${storageClass}`}>{storageLabel}</span>
+            </div>
+
+            {storageStatus.error ? (
+              <div className="server-error-message">{storageStatus.error}</div>
+            ) : null}
+
+            <div className="details-list">
+              <div><strong>Load status:</strong> {storageStatus.loading ? "Loading from MongoDB" : "Ready"}</div>
+              <div><strong>Save status:</strong> {storageStatus.saving ? "Saving changes" : "Idle"}</div>
+              <div><strong>Last saved:</strong> {storageStatus.lastSavedAt ? new Date(storageStatus.lastSavedAt).toLocaleString() : "Not saved this session"}</div>
+              <div><strong>Fallback cache:</strong> localStorage remains updated for offline recovery.</div>
+            </div>
+          </Card>
+        </div>
+
+        <Card dark={dark}>
+          <div className="section-header">
+            <div>
+              <h3>MongoDB Connection Result</h3>
+              <p className="row-subtitle">The server returns connection metadata only. It does not expose your MongoDB URI.</p>
+            </div>
+          </div>
+
+          {serverStatus.error ? (
+            <div className="server-error-message">{serverStatus.error}</div>
+          ) : null}
+
+          {serverStatus.data ? (
+            <div className="details-list">
+              <div><strong>Connected:</strong> {serverStatus.data.ok ? "Yes" : "No"}</div>
+              <div><strong>Database:</strong> {serverStatus.data.databaseName}</div>
+              <div><strong>Checked:</strong> {new Date(serverStatus.data.checkedAt).toLocaleString()}</div>
+              <div>
+                <strong>Collections:</strong>{" "}
+                {serverStatus.data.collections.length
+                  ? serverStatus.data.collections.join(", ")
+                  : "No collections found"}
+              </div>
+            </div>
+          ) : (
+            <p className="row-subtitle">No server result yet.</p>
+          )}
+        </Card>
+      </>
+    );
+  };
+
   const renderSettings = () => (
     <Card dark={dark}>
       <h3>Settings</h3>
@@ -3445,6 +3761,7 @@ export default function ConstructionQuoteApp() {
             {currentPage === "quotes" && quotesView === "builder" && renderQuotes()}
             {currentPage === "schedule" && renderSchedule()}
             {currentPage === "pricelist" && renderPriceList()}
+            {currentPage === "server" && renderServer()}
             {currentPage === "settings" && renderSettings()}
           </MotionDiv>
         </main>
