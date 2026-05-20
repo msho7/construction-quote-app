@@ -528,6 +528,77 @@ export const APP_STYLES = `
   .timeline-list, .list-table { display: flex; flex-direction: column; gap: 12px; }
   .button-stack.compact { gap: 8px; }
   .button-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .landing-action-bar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .landing-action-bar .button {
+    min-height: 48px;
+    width: 100%;
+    font-weight: 700;
+  }
+  .dashboard-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .dashboard-metric-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 62px;
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #111827;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  }
+  .dashboard-metric-button:hover {
+    border-color: #2563eb;
+    background: #eff6ff;
+    transform: translateY(-1px);
+  }
+  .dashboard-metric-button span {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #4b5563;
+  }
+  .dashboard-metric-button strong {
+    font-size: 1.8rem;
+    line-height: 1;
+  }
+  .dashboard-job-list,
+  .dashboard-detail-panel {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid #e5e7eb;
+  }
+  .dashboard-job-list h4,
+  .dashboard-detail-panel h4 {
+    margin: 0;
+  }
+  .app-shell.dark .dashboard-metric-button {
+    border-color: #374151;
+    background: #0f172a;
+    color: #f9fafb;
+  }
+  .app-shell.dark .dashboard-metric-button:hover {
+    border-color: #60a5fa;
+    background: rgba(37, 99, 235, 0.18);
+  }
+  .app-shell.dark .dashboard-metric-button span {
+    color: #d1d5db;
+  }
+  .app-shell.dark .dashboard-job-list,
+  .app-shell.dark .dashboard-detail-panel {
+    border-top-color: #374151;
+  }
   .section-header {
     display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px;
   }
@@ -1665,7 +1736,7 @@ export const APP_STYLES = `
     .stats-grid, .analysis-metric-grid, .analysis-status-grid, .analysis-detail-grid, .analysis-table-row, .two-col-layout, .grid.three-col, .grid.price-grid, .grid.template-grid,
     .export-modal-grid, .room-name-row, .grid.customer-address-row, .grid.contractor-rate-row,
     .quote-header-row, .quote-row.advanced, .item-picker,
-    .room-template-editor-header, .room-template-editor-row,
+    .room-template-editor-header, .room-template-editor-row, .landing-action-bar, .dashboard-metric-grid,
     .saved-room-templates-header, .saved-room-templates-row { grid-template-columns: 1fr; }
     .settings-expiry-row { grid-template-columns: 1fr; }
     .settings-expiry-controls { align-items: flex-start; flex-direction: column; }

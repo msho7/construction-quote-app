@@ -955,6 +955,7 @@ export default function ConstructionQuoteApp() {
   const [showDraftSchedulePreview, setShowDraftSchedulePreview] = useState(false);
   const [quotesCustomerFilter, setQuotesCustomerFilter] = useState(null);
   const [quotesInitialProjectList, setQuotesInitialProjectList] = useState("");
+  const [dashboardDetailView, setDashboardDetailView] = useState("");
   const [notification, setNotification] = useState(null);
   const [serverStatus, setServerStatus] = useState({
     loading: false,
@@ -2365,8 +2366,6 @@ export default function ConstructionQuoteApp() {
     closeExportModal();
   };
 
-  const totalDuration = useMemo(() => items.reduce((sum, item) => sum + Number(item.duration || 0), 0), [items]);
-
   const generateSchedule = () => {
     if (!startDate) {
       showNotification("Please select a start date.", "warning");
@@ -2570,13 +2569,6 @@ export default function ConstructionQuoteApp() {
     }
   };
 
-  const statCards = [
-    { label: "Price List Items", value: priceList.length },
-    { label: "Quote Items", value: items.filter((item) => item.name.trim()).length },
-    { label: "Project Total", value: formatMoney(totals.total) },
-    { label: "Schedule Days", value: totalDuration }
-  ];
-
   const activeQuoteRecord = editingQuoteId
     ? savedQuotes.find((quote) => quote.id === editingQuoteId)
     : null;
@@ -2595,6 +2587,60 @@ export default function ConstructionQuoteApp() {
   const selectedApprovedScheduleQuote = approvedScheduleQuotes.find(
     (quote) => quote.id === selectedScheduleQuoteId
   ) || null;
+  const todayDate = getTodayDate();
+  const openQuoteRecords = savedQuotes.filter((quote) => (quote.status || "open") === "open");
+  const ongoingJobRecords = savedQuotes.filter((quote) => {
+    const status = quote.status || "open";
+    const start = toDateInputValue(quote.startDate);
+
+    return (
+      ["approved", "ongoing"].includes(status) &&
+      start &&
+      start <= todayDate
+    );
+  });
+  const getQuoteLocation = (quote = {}) =>
+    quote.projectAddress ||
+    getProfileAddressDisplay(quote.customerProfile) ||
+    "No location saved";
+  const getQuoteScheduleStatus = (quote = {}) => {
+    const scheduleItems = quote.schedule || [];
+
+    if (scheduleItems.some((task) => task.completionStatus === "delayed")) {
+      return "delayed";
+    }
+
+    if (scheduleItems.some((task) => !task.completed && toDateInputValue(task.endDate) && toDateInputValue(task.endDate) < todayDate)) {
+      return "delayed";
+    }
+
+    return "on-time";
+  };
+  const onTimeJobRecords = ongoingJobRecords.filter((quote) => getQuoteScheduleStatus(quote) === "on-time");
+  const delayedJobRecords = ongoingJobRecords.filter((quote) => getQuoteScheduleStatus(quote) === "delayed");
+  const dashboardDetailConfig = {
+    ongoing: {
+      title: "Ongoing Jobs",
+      empty: "No ongoing jobs found.",
+      records: ongoingJobRecords
+    },
+    onTime: {
+      title: "On-Time Jobs",
+      empty: "No on-time jobs found.",
+      records: onTimeJobRecords
+    },
+    delayed: {
+      title: "Delayed Jobs",
+      empty: "No delayed jobs found.",
+      records: delayedJobRecords
+    },
+    openQuotes: {
+      title: "Open Quotes Not Approved",
+      empty: "No open quotes waiting for approval.",
+      records: openQuoteRecords
+    }
+  };
+  const activeDashboardDetail = dashboardDetailView ? dashboardDetailConfig[dashboardDetailView] : null;
 
   const renderAnalysis = () => (
     <AnalysisPage
@@ -2608,34 +2654,97 @@ export default function ConstructionQuoteApp() {
 
   const renderDashboard = () => (
     <>
-      <div className="stats-grid">
-        {statCards.map((stat) => (
-          <Card key={stat.label} dark={dark}>
-            <div className="stat-label">{stat.label}</div>
-            <div className="stat-value">{stat.value}</div>
-          </Card>
-        ))}
-      </div>
+      <Card dark={dark}>
+        <div className="button-row landing-action-bar">
+          <Button onClick={startNewQuote}>New Quote</Button>
+          <Button variant="secondary" onClick={openScheduleLanding}>View Schedules</Button>
+          <Button variant="secondary" onClick={openQuotesLanding}>View Quotes</Button>
+        </div>
+      </Card>
 
       <div className="two-col-layout">
         <Card dark={dark}>
-          <h3>Current Project Snapshot</h3>
-          <div className="details-list">
-            <div><strong>Project:</strong> {projectTitle || "Not set"}</div>
-            <div><strong>Client:</strong> {clientName || "Not set"}</div>
-            <div><strong>Address:</strong> {projectAddress || "Not set"}</div>
-            <div><strong>Quote Date:</strong> {quoteDate || "Not set"}</div>
-            <div><strong>Start Date:</strong> {startDate || "Not set"}</div>
+          <div className="section-header">
+            <div>
+              <h3>Job Tracker</h3>
+              <p className="row-subtitle">Active jobs, schedule risk, and quotes waiting for approval.</p>
+            </div>
           </div>
+
+          <div className="dashboard-metric-grid">
+            <button type="button" className="dashboard-metric-button" onClick={() => setDashboardDetailView("ongoing")}>
+              <span>Ongoing Jobs</span>
+              <strong>{ongoingJobRecords.length}</strong>
+            </button>
+            <button type="button" className="dashboard-metric-button" onClick={() => setDashboardDetailView("onTime")}>
+              <span>Jobs On Time</span>
+              <strong>{onTimeJobRecords.length}</strong>
+            </button>
+            <button type="button" className="dashboard-metric-button" onClick={() => setDashboardDetailView("delayed")}>
+              <span>Jobs Delayed</span>
+              <strong>{delayedJobRecords.length}</strong>
+            </button>
+            <button type="button" className="dashboard-metric-button" onClick={() => setDashboardDetailView("openQuotes")}>
+              <span>Open Quotes</span>
+              <strong>{openQuoteRecords.length}</strong>
+            </button>
+          </div>
+
+          <div className="dashboard-job-list">
+            <h4>Ongoing Jobs</h4>
+            {ongoingJobRecords.length === 0 ? (
+              <p className="row-subtitle">No ongoing jobs yet.</p>
+            ) : (
+              <div className="list-table">
+                {ongoingJobRecords.slice(0, 4).map((quote) => (
+                  <div key={quote.id} className="list-row">
+                    <div>
+                      <button type="button" className="quote-title-button" onClick={() => openApprovedQuoteSchedule(quote.id)}>
+                        {formatQuoteReferenceNumber(quote)}
+                      </button>
+                      <div className="row-subtitle">{getQuoteLocation(quote)}</div>
+                    </div>
+                    <span className={`status-pill ${getQuoteScheduleStatus(quote)}`}>
+                      {getQuoteScheduleStatus(quote) === "delayed" ? "Delayed" : "On Time"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {activeDashboardDetail ? (
+            <div className="dashboard-detail-panel">
+              <div className="section-header">
+                <div>
+                  <h4>{activeDashboardDetail.title}</h4>
+                </div>
+                <Button variant="secondary" onClick={() => setDashboardDetailView("")}>Close</Button>
+              </div>
+              {activeDashboardDetail.records.length === 0 ? (
+                <p className="row-subtitle">{activeDashboardDetail.empty}</p>
+              ) : (
+                <div className="list-table">
+                  {activeDashboardDetail.records.map((quote) => (
+                    <div key={quote.id} className="list-row clickable" onClick={() => (quote.status || "open") === "open" ? loadQuote(quote) : openApprovedQuoteSchedule(quote.id)}>
+                      <div>
+                        <div className="row-title">{formatQuoteReferenceNumber(quote)} - {quote.projectTitle || "Untitled job"}</div>
+                        <div className="row-subtitle">{getQuoteLocation(quote)}</div>
+                      </div>
+                      <span className={`status-pill ${(quote.status || "open") === "open" ? "open" : getQuoteScheduleStatus(quote)}`}>
+                        {(quote.status || "open") === "open" ? "Open" : getQuoteScheduleStatus(quote) === "delayed" ? "Delayed" : "On Time"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
         </Card>
 
         <Card dark={dark}>
           <h3>Quick Actions</h3>
           <div className="button-stack">
-            <Button onClick={openQuoteBuilder}>Open Quote Builder</Button>
-            <Button variant="secondary" onClick={openQuotesLanding}>Quotes Overview</Button>
-            <Button variant="secondary" onClick={() => setCurrentPage("analysis")}>View Analysis</Button>
-            <Button variant="secondary" onClick={openScheduleLanding}>View Schedules</Button>
             <Button variant="secondary" onClick={() => setCurrentPage("pricelist")}>Manage Price List</Button>
             <Button variant="secondary" onClick={() => setCurrentPage("contractor")}>Manage Contractors</Button>
             <Button variant="secondary" onClick={() => setCurrentPage("customer")}>Manage Customers</Button>
