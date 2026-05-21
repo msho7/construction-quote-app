@@ -111,6 +111,7 @@ export default function QuotesLandingPage({
   onNewQuote,
   onOpenQuote,
   onOpenQuoteSchedule,
+  onOpenMaterialTakeoff,
   onToggleQuoteApproval,
   onDeleteQuote,
   onIncrementQuoteInvoicePart,
@@ -176,6 +177,9 @@ export default function QuotesLandingPage({
           <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
             Edit Quote
           </Button>
+          <Button variant="secondary" onClick={() => onOpenMaterialTakeoff?.(quote)}>
+            Material Takeoff
+          </Button>
           <Button variant="secondary" onClick={() => onToggleQuoteApproval(quote.id)}>
             Mark In Progress
           </Button>
@@ -188,6 +192,9 @@ export default function QuotesLandingPage({
         <>
           <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
             Edit Quote
+          </Button>
+          <Button variant="secondary" onClick={() => onOpenMaterialTakeoff?.(quote)}>
+            Material Takeoff
           </Button>
           <Button variant="secondary" onClick={() => onToggleQuoteApproval(quote.id)}>
             Mark In Progress

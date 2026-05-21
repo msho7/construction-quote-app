@@ -1,5 +1,5 @@
 export type ThemeMode = "light" | "dark" | "system";
-export type PageId = "dashboard" | "analysis" | "quotes" | "schedule" | "pricelist" | "contractor" | "customer" | "server" | "settings";
+export type PageId = "dashboard" | "analysis" | "quotes" | "schedule" | "takeoff" | "pricelist" | "contractor" | "customer" | "server" | "settings";
 
 export interface QuoteItem {
   itemId?: string;

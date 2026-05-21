@@ -1677,6 +1677,35 @@ export const APP_STYLES = `
     border-color: #374151;
     box-shadow: none;
   }
+  .takeoff-table {
+    display: flex;
+    flex-direction: column;
+    overflow-x: auto;
+  }
+  .takeoff-table-row {
+    display: grid;
+    grid-template-columns: minmax(220px, 2fr) minmax(72px, 0.7fr) minmax(72px, 0.7fr) minmax(160px, 1.4fr) minmax(110px, 1fr) minmax(96px, 1fr);
+    gap: 12px;
+    align-items: center;
+    min-width: 760px;
+    padding: 12px 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .takeoff-table-row:last-child {
+    border-bottom: none;
+  }
+  .takeoff-table-header {
+    color: #6b7280;
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+  .app-shell.dark .takeoff-table-row {
+    border-bottom-color: #374151;
+  }
+  .app-shell.dark .takeoff-table-header {
+    color: #9ca3af;
+  }
   .modal-header { margin-bottom: 12px; }
   .export-modal-grid { grid-template-columns: 1.5fr 1fr; margin-bottom: 16px; }
   .modal-actions { justify-content: flex-end; }

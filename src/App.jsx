@@ -35,6 +35,7 @@ import CustomerPage from "./components/customer/CustomerPage";
 import QuoteItemsTable from "./components/quotes/QuoteItemsTable";
 import QuotesLandingPage from "./components/quotes/QuotesLandingPage";
 import SchedulePage from "./components/schedule/SchedulePage";
+import MaterialTakeoffPage from "./components/takeoff/MaterialTakeoffPage";
 
 const ContractorPage = lazy(() => import("./components/contractor/ContractorPage"));
 
@@ -952,6 +953,8 @@ export default function ConstructionQuoteApp() {
   const [lockedQuoteViewId, setLockedQuoteViewId] = useState(null);
   const [quotesView, setQuotesView] = useState("landing");
   const [selectedScheduleQuoteId, setSelectedScheduleQuoteId] = useState(null);
+  const [selectedTakeoffQuoteId, setSelectedTakeoffQuoteId] = useState(null);
+  const [selectedTakeoffQuoteDraft, setSelectedTakeoffQuoteDraft] = useState(null);
   const [showDraftSchedulePreview, setShowDraftSchedulePreview] = useState(false);
   const [quotesCustomerFilter, setQuotesCustomerFilter] = useState(null);
   const [quotesInitialProjectList, setQuotesInitialProjectList] = useState("");
@@ -1920,6 +1923,12 @@ export default function ConstructionQuoteApp() {
     setCurrentPage("schedule");
   };
 
+  const openMaterialTakeoff = (quoteId, quoteDraft = null) => {
+    setSelectedTakeoffQuoteId(quoteId);
+    setSelectedTakeoffQuoteDraft(quoteDraft);
+    setCurrentPage("takeoff");
+  };
+
   const openCurrentDraftSchedule = () => {
     setSelectedScheduleQuoteId(null);
     setShowDraftSchedulePreview(true);
@@ -2274,6 +2283,42 @@ export default function ConstructionQuoteApp() {
     return { subtotal, markup, tax, total: subtotal + markup + tax };
   }, [items, taxRate]);
 
+  const getCurrentQuoteTakeoffPayload = () => {
+    const existingQuote = editingQuoteId
+      ? savedQuotes.find((savedQuote) => savedQuote.id === editingQuoteId)
+      : null;
+    const normalizedQuoteCustomerProfile = hasCustomerProfileData(quoteCustomerProfile)
+      ? normalizeCustomerRecord(quoteCustomerProfile)
+      : null;
+    const normalizedQuoteContractorProfile = hasContractorProfileData(contractorProfile)
+      ? normalizeContractorProfile(contractorProfile, contractorExpirySettings)
+      : null;
+    const projectNumber = existingQuote?.projectNumber || getNextQuoteProjectNumber(savedQuotes);
+    const quoteStatus = existingQuote?.status || "open";
+    const invoicePartNumber = existingQuote?.invoicePartNumber || 1;
+
+    return {
+      ...(existingQuote || {}),
+      id: editingQuoteId || existingQuote?.id || null,
+      projectNumber,
+      status: quoteStatus,
+      invoicePartNumber,
+      projectTitle: projectTitle || existingQuote?.projectTitle || `Quote ${savedQuotes.length + 1}`,
+      clientName,
+      customerId: selectedQuoteCustomerId || normalizedQuoteCustomerProfile?.id || "",
+      customerProfile: normalizedQuoteCustomerProfile,
+      contractorProfile: normalizedQuoteContractorProfile,
+      projectAddress,
+      quoteDate,
+      startDate,
+      taxRate: Number(taxRate || 0),
+      items,
+      totals,
+      schedule,
+      takeoffSource: "Current quote draft"
+    };
+  };
+
   const getQuoteDocumentPayload = () => {
     const existingQuote = editingQuoteId
       ? savedQuotes.find((savedQuote) => savedQuote.id === editingQuoteId)
@@ -2587,6 +2632,8 @@ export default function ConstructionQuoteApp() {
   const selectedApprovedScheduleQuote = approvedScheduleQuotes.find(
     (quote) => quote.id === selectedScheduleQuoteId
   ) || null;
+  const savedTakeoffQuote = savedQuotes.find((quote) => quote.id === selectedTakeoffQuoteId) || null;
+  const selectedTakeoffQuote = selectedTakeoffQuoteDraft || savedTakeoffQuote || null;
   const todayDate = getTodayDate();
   const openQuoteRecords = savedQuotes.filter((quote) => (quote.status || "open") === "open");
   const ongoingJobRecords = savedQuotes.filter((quote) => {
@@ -2799,6 +2846,11 @@ export default function ConstructionQuoteApp() {
             {isCurrentQuoteLocked && activeQuoteRecord ? (
               <Button variant="secondary" onClick={() => openApprovedQuoteSchedule(activeQuoteRecord.id)}>
                 View Schedule
+              </Button>
+            ) : null}
+            {isCurrentQuoteApproved && activeQuoteRecord ? (
+              <Button variant="secondary" onClick={() => openMaterialTakeoff(activeQuoteRecord.id, getCurrentQuoteTakeoffPayload())}>
+                Material Takeoff
               </Button>
             ) : null}
             {!isCurrentQuoteApproved && !isCurrentQuoteLocked ? (
@@ -3120,6 +3172,17 @@ export default function ConstructionQuoteApp() {
       onOpenQuote={loadQuote}
       onOpenQuoteSchedule={(quote) => openApprovedQuoteSchedule(quote.id)}
       onBackToLanding={openScheduleLanding}
+    />
+  );
+
+  const renderTakeoff = () => (
+    <MaterialTakeoffPage
+      dark={dark}
+      quote={selectedTakeoffQuote}
+      savedQuote={savedTakeoffQuote}
+      priceList={priceList}
+      onBack={openQuotesLanding}
+      onOpenQuote={loadQuote}
     />
   );
 
@@ -3861,6 +3924,7 @@ export default function ConstructionQuoteApp() {
                 onNewQuote={startNewQuote}
                 onOpenQuote={loadQuote}
                 onOpenQuoteSchedule={(quote) => openApprovedQuoteSchedule(quote.id)}
+                onOpenMaterialTakeoff={(quote) => openMaterialTakeoff(quote.id)}
                 onToggleQuoteApproval={toggleQuoteApproval}
                 onDeleteQuote={deleteUnapprovedQuote}
                 onIncrementQuoteInvoicePart={incrementQuoteInvoicePart}
@@ -3869,6 +3933,7 @@ export default function ConstructionQuoteApp() {
             )}
             {currentPage === "quotes" && quotesView === "builder" && renderQuotes()}
             {currentPage === "schedule" && renderSchedule()}
+            {currentPage === "takeoff" && renderTakeoff()}
             {currentPage === "pricelist" && renderPriceList()}
             {currentPage === "server" && renderServer()}
             {currentPage === "settings" && renderSettings()}
