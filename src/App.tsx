@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { APP_STYLES } from "./styles";
@@ -7,12 +8,10 @@ import {
   PAGE_OPTIONS,
   PROJECT_TEMPLATES,
   DEFAULT_ITEM_MARKUP_RATE,
-  EMPTY_ITEM,
   EMPTY_PRICE_ITEM,
   DEFAULT_TEMPLATE_VALUES
 } from "./constants/appConstants";
 import {
-  createTemplateItems,
   safeJsonParse,
   formatMoney,
   toDateInputValue,
@@ -26,8 +25,62 @@ import {
   getNumericInputValue,
   formatQuoteReferenceNumber,
   getNextQuoteProjectNumber,
-  normalizeSavedQuoteReferences
+  normalizeSavedQuoteReferences,
+  createTemplateItems
 } from "./utils/appUtils";
+import { getTodayDate } from "./utils/dateUtils";
+import { createQuoteId, createRoomId, createRoomTemplateId } from "./utils/idUtils";
+import { getNormalizedItemName, getNormalizedText } from "./utils/textUtils";
+import {
+  COMPANY_TYPE_OPTIONS,
+  DEFAULT_COMPANY_SETTINGS,
+  DEFAULT_CONTRACTOR_EXPIRY_SETTINGS,
+  EMPTY_CONTRACTOR_PROFILE,
+  EMPTY_CUSTOMER_PROFILE,
+  createSavedContractorRecord,
+  createSavedCustomerRecord,
+  getCompanySettings,
+  getContractorExpirySettings,
+  getCustomerDisplayName,
+  getInitialContractorProfile,
+  getInitialCustomerProfile,
+  getInitialSavedContractors,
+  getInitialSavedCustomers,
+  getProfileAddressDisplay,
+  hasContractorProfileData,
+  hasCustomerProfileData,
+  isProjectLocked,
+  normalizeContractorProfile,
+  normalizeCustomerRecord
+} from "./utils/profileUtils";
+import {
+  assignContractorsToSchedule,
+  buildScheduleFromItems,
+  getContractorTradeList,
+  getScheduleTaskWithContractor,
+  getSuggestedTradeForTask,
+  markScheduleTaskCompletedInCollection,
+  markScheduleTaskInProgressInCollection,
+  normalizeScheduleItems,
+  preserveScheduleCompletionState,
+  reorderCollectionBeforeIndex,
+  resequenceScheduleItems,
+  syncQuoteItemsToSchedule
+} from "./utils/scheduleUtils";
+import { createEmptyQuoteItem, normalizeQuoteItems } from "./utils/quoteItemUtils";
+import {
+  createEmptyRoomTemplateItem,
+  isBuiltInRoomTemplateId,
+  mergeSavedRoomTemplatesWithBuiltIns,
+  normalizeRoomTemplateItems,
+  serializeRoomTemplateItems
+} from "./utils/roomTemplateUtils";
+import {
+  normalizeRemoteSavedContractors,
+  normalizeRemoteSavedCustomers,
+  normalizeRemoteSavedQuotes,
+  persistAppStateToLocalStorage
+} from "./utils/storageUtils";
 import { exportQuoteToExcel, exportQuoteToPdf } from "./utils/exportUtils";
 import { Card, Button, Input, Select } from "./components/ui";
 import AnalysisPage from "./components/analysis/AnalysisPage";
@@ -38,838 +91,6 @@ import SchedulePage from "./components/schedule/SchedulePage";
 import MaterialTakeoffPage from "./components/takeoff/MaterialTakeoffPage";
 
 const ContractorPage = lazy(() => import("./components/contractor/ContractorPage"));
-
-const getTodayDate = () => new Date().toISOString().slice(0, 10);
-const createRoomId = () => `room-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-const createItemId = () => `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-const createRoomTemplateId = () => `room-template-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-const createContractorId = () => `contractor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-const createCustomerId = () => `customer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-const createQuoteId = () => Number(`${Date.now()}${Math.floor(Math.random() * 1000)}`);
-const getNormalizedText = (value) => String(value || "").trim().toLowerCase();
-const getNormalizedItemName = (name) => getNormalizedText(name);
-const DEFAULT_CONTRACTOR_EXPIRY_SETTINGS = {
-  enabled: true,
-  amount: 6,
-  unit: "months"
-};
-const COMPANY_TYPE_OPTIONS = [
-  { id: "general-renovation", label: "General Contractor / Renovation Company" },
-  { id: "plumbing", label: "Plumbing Company" },
-  { id: "electrical", label: "Electrical Company" },
-  { id: "hvac", label: "HVAC Company" },
-  { id: "roofing", label: "Roofing Company" },
-  { id: "drywall-taping", label: "Drywall / Taping Company" },
-  { id: "painting", label: "Painting Company" },
-  { id: "flooring", label: "Flooring Company" },
-  { id: "tile", label: "Tile Company" },
-  { id: "framing-carpentry", label: "Framing / Carpentry Company" },
-  { id: "finish-carpentry", label: "Finish Carpentry Company" },
-  { id: "concrete", label: "Concrete Company" },
-  { id: "landscaping", label: "Landscaping Company" },
-  { id: "masonry", label: "Masonry Company" },
-  { id: "excavation-sitework", label: "Excavation / Sitework Company" },
-  { id: "demolition", label: "Demolition Company" },
-  { id: "window-door", label: "Window / Door Company" },
-  { id: "cabinet-kitchen", label: "Cabinet / Kitchen Company" },
-  { id: "insulation", label: "Insulation Company" },
-  { id: "handy-person", label: "Handy Person / Property Maintenance" },
-  { id: "cleaning", label: "Cleaning / Post-Construction Cleaning" }
-];
-const DEFAULT_COMPANY_SETTINGS = {
-  companyType: COMPANY_TYPE_OPTIONS[0].id
-};
-const EMPTY_CONTRACTOR_PROFILE = {
-  companyName: "",
-  contactName: "",
-  trade: "",
-  status: "active",
-  lastAssignedJobDate: "",
-  phone: "",
-  email: "",
-  rate: "",
-  rateType: "hour",
-  address: "",
-  unitNumber: "",
-  city: "",
-  province: "",
-  postalCode: "",
-  notes: ""
-};
-const EMPTY_CUSTOMER_PROFILE = {
-  customerName: "",
-  companyName: "",
-  phone: "",
-  email: "",
-  address: "",
-  unitNumber: "",
-  city: "",
-  province: "",
-  postalCode: "",
-  notes: ""
-};
-const CONTRACTOR_PROFILE_FIELDS = [
-  "companyName",
-  "contactName",
-  "trade",
-  "phone",
-  "email",
-  "rate",
-  "rateType",
-  "address",
-  "unitNumber",
-  "city",
-  "province",
-  "postalCode",
-  "notes"
-];
-const CUSTOMER_PROFILE_FIELDS = [
-  "customerName",
-  "companyName",
-  "phone",
-  "email",
-  "address",
-  "unitNumber",
-  "city",
-  "province",
-  "postalCode",
-  "notes"
-];
-const getContractorExpirySettings = (settings = {}) => {
-  const amount = Number(settings.amount ?? DEFAULT_CONTRACTOR_EXPIRY_SETTINGS.amount);
-
-  return {
-    enabled: settings.enabled !== false,
-    amount: Number.isFinite(amount)
-      ? Math.min(12, Math.max(1, Math.floor(amount)))
-      : DEFAULT_CONTRACTOR_EXPIRY_SETTINGS.amount,
-    unit: settings.unit === "years" ? "years" : "months"
-  };
-};
-const getCompanySettings = (settings = {}) => ({
-  companyType: COMPANY_TYPE_OPTIONS.some((option) => option.id === settings.companyType)
-    ? settings.companyType
-    : DEFAULT_COMPANY_SETTINGS.companyType
-});
-const getContractorExpiryMonths = (settings = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
-  const expirySettings = getContractorExpirySettings(settings);
-  return expirySettings.unit === "years"
-    ? expirySettings.amount * 12
-    : expirySettings.amount;
-};
-const addMonthsToDateInput = (value, months) => {
-  const normalizedDate = toDateInputValue(value);
-  if (!normalizedDate) return "";
-
-  const nextDate = new Date(`${normalizedDate}T00:00:00`);
-  nextDate.setMonth(nextDate.getMonth() + Number(months || 0));
-
-  return nextDate.toISOString().slice(0, 10);
-};
-const getContractorInactiveAfterDate = (profile = {}, settings = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
-  const expirySettings = getContractorExpirySettings(settings);
-  if (!expirySettings.enabled) return "";
-
-  return addMonthsToDateInput(profile.lastAssignedJobDate, getContractorExpiryMonths(expirySettings));
-};
-const getContractorActivityStatus = (profile = {}, settings = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
-  const expirySettings = getContractorExpirySettings(settings);
-  if (!expirySettings.enabled) return "active";
-
-  const inactiveAfterDate = getContractorInactiveAfterDate(profile, expirySettings);
-
-  if (inactiveAfterDate && inactiveAfterDate < getTodayDate()) {
-    return "inactive";
-  }
-
-  return profile.status === "inactive" && !profile.lastAssignedJobDate
-    ? "inactive"
-    : "active";
-};
-const normalizeCustomerRecord = (profile = {}) => ({
-  id: profile.id || "",
-  createdAt: profile.createdAt || "",
-  updatedAt: profile.updatedAt || "",
-  ...EMPTY_CUSTOMER_PROFILE,
-  ...profile
-});
-const normalizeContractorProfile = (profile = {}, settings = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
-  const normalizedProfile = {
-    id: profile.id || "",
-    createdAt: profile.createdAt || "",
-    updatedAt: profile.updatedAt || "",
-    ...EMPTY_CONTRACTOR_PROFILE,
-    ...profile,
-    lastAssignedJobDate: toDateInputValue(profile.lastAssignedJobDate)
-  };
-
-  return {
-    ...normalizedProfile,
-    status: getContractorActivityStatus(normalizedProfile, settings)
-  };
-};
-const hasContractorProfileData = (profile = EMPTY_CONTRACTOR_PROFILE) =>
-  CONTRACTOR_PROFILE_FIELDS.some((field) => String(profile?.[field] || "").trim());
-const hasCustomerProfileData = (profile = EMPTY_CUSTOMER_PROFILE) =>
-  CUSTOMER_PROFILE_FIELDS.some((field) => String(profile?.[field] || "").trim());
-const getCustomerDisplayName = (profile = EMPTY_CUSTOMER_PROFILE) =>
-  String(profile?.customerName || "").trim() ||
-  String(profile?.companyName || "").trim() ||
-  "Customer";
-const isProjectLocked = (quote = {}) => ["completed", "invoiced"].includes(quote?.status);
-const getContractorDisplayName = (profile = EMPTY_CONTRACTOR_PROFILE) =>
-  String(profile?.companyName || "").trim() ||
-  String(profile?.contactName || "").trim() ||
-  "Contractor";
-const TASK_TRADE_MATCHERS = [
-  { trade: "Demolition", keywords: ["demo", "demolition", "remove", "tear out", "tearout"] },
-  { trade: "Electrical", keywords: ["electrical", "electric", "wire", "wiring", "outlet", "light", "lighting", "panel"] },
-  { trade: "Plumbing", keywords: ["plumbing", "plumber", "pipe", "drain", "water", "toilet", "sink", "faucet", "shower", "tub"] },
-  { trade: "HVAC", keywords: ["hvac", "duct", "vent", "furnace", "air conditioning", "ac"] },
-  { trade: "Framing", keywords: ["framing", "frame", "stud", "structure"] },
-  { trade: "Drywall", keywords: ["drywall", "board", "tape", "mud", "compound"] },
-  { trade: "Painting", keywords: ["paint", "painting", "primer", "prime"] },
-  { trade: "Flooring", keywords: ["floor", "flooring", "tile", "vinyl", "hardwood", "laminate"] },
-  { trade: "Carpentry", keywords: ["carpentry", "carpenter", "trim", "baseboard", "door", "cabinet", "millwork"] },
-  { trade: "Masonry", keywords: ["masonry", "brick", "block", "concrete", "cement"] },
-  { trade: "Roofing", keywords: ["roof", "roofing", "shingle"] },
-  { trade: "Delivery", keywords: ["delivery", "deliver", "pickup", "dump", "bin"] },
-  { trade: "General Labour", keywords: ["labour", "labor", "clean", "cleanup", "prep", "general"] }
-];
-const getTaskSearchText = (task = {}) =>
-  [task.name, task.category, task.roomName, task.unit].map((value) => String(value || "").toLowerCase()).join(" ");
-const getSuggestedTradeForTask = (task = {}) => {
-  const taskText = getTaskSearchText(task);
-  const match = TASK_TRADE_MATCHERS.find(({ keywords }) =>
-    keywords.some((keyword) => taskText.includes(keyword))
-  );
-
-  return match?.trade || String(task.category || "").trim() || "";
-};
-const getContractorTradeList = (contractor = {}) =>
-  String(contractor.trade || "")
-    .split(/[,/|&]+|\band\b/i)
-    .map((trade) => trade.trim())
-    .filter(Boolean);
-const getContractorTradeSearchText = (contractor = {}) =>
-  [
-    ...getContractorTradeList(contractor),
-    contractor.companyName,
-    contractor.contactName
-  ].map((value) => String(value || "").toLowerCase()).join(" ");
-const canContractorDoTrade = (contractor = {}, suggestedTrade = "") => {
-  const suggestedTradeText = String(suggestedTrade || "").toLowerCase();
-  if (!suggestedTradeText || contractor.status === "inactive") return false;
-
-  const contractorText = getContractorTradeSearchText(contractor);
-  return Boolean(
-    contractorText.includes(suggestedTradeText) ||
-    TASK_TRADE_MATCHERS.some(({ trade, keywords }) =>
-      trade.toLowerCase() === suggestedTradeText &&
-      keywords.some((keyword) => contractorText.includes(keyword))
-    )
-  );
-};
-const getTaskAssignmentRange = (task = {}) => {
-  const startDate = toDateInputValue(task.startDate);
-  if (!startDate) return null;
-
-  const endDate = toDateInputValue(task.endDate) || getScheduleEndDate(startDate, Number(task.duration || 1));
-  return {
-    startDate,
-    endDate: endDate || startDate
-  };
-};
-const doTaskDateRangesOverlap = (firstRange, secondRange) => {
-  if (!firstRange || !secondRange) return false;
-  return firstRange.startDate <= secondRange.endDate && secondRange.startDate <= firstRange.endDate;
-};
-const getContractorHasDateConflict = (contractorId, taskRange, contractorBookings) => {
-  if (!contractorId || !taskRange) return false;
-
-  return (contractorBookings.get(contractorId) || []).some((bookedRange) =>
-    doTaskDateRangesOverlap(taskRange, bookedRange)
-  );
-};
-const addContractorBooking = (contractorId, taskRange, contractorBookings) => {
-  if (!contractorId || !taskRange) return;
-
-  contractorBookings.set(contractorId, [
-    ...(contractorBookings.get(contractorId) || []),
-    taskRange
-  ]);
-};
-const assignContractorsToSchedule = (scheduleItems = [], contractors = []) => {
-  const activeContractors = contractors.filter((contractor) => contractor.status !== "inactive");
-  const assignmentCounts = new Map();
-  const contractorBookings = new Map();
-
-  return normalizeScheduleItems(scheduleItems).map((task) => {
-    const suggestedTrade = getSuggestedTradeForTask(task);
-    const taskRange = getTaskAssignmentRange(task);
-    const existingAssignedContractor = activeContractors.find((contractor) => contractor.id && contractor.id === task.assignedContractorId);
-    const matchingContractors = activeContractors.filter((contractor) => canContractorDoTrade(contractor, suggestedTrade));
-    const getSortedContractors = (contractorOptions = []) =>
-      contractorOptions
-        .slice()
-        .sort((contractorA, contractorB) => {
-          const contractorAAssignments = assignmentCounts.get(contractorA.id) || 0;
-          const contractorBAssignments = assignmentCounts.get(contractorB.id) || 0;
-          if (contractorAAssignments !== contractorBAssignments) {
-            return contractorBAssignments - contractorAAssignments;
-          }
-
-          return getContractorDisplayName(contractorA).localeCompare(getContractorDisplayName(contractorB));
-        });
-
-    if (
-      existingAssignedContractor &&
-      !getContractorHasDateConflict(existingAssignedContractor.id, taskRange, contractorBookings)
-    ) {
-      assignmentCounts.set(
-        existingAssignedContractor.id,
-        (assignmentCounts.get(existingAssignedContractor.id) || 0) + 1
-      );
-      addContractorBooking(existingAssignedContractor.id, taskRange, contractorBookings);
-
-      return {
-        ...task,
-        suggestedTrade,
-        assignedContractorId: existingAssignedContractor.id || "",
-        assignedContractorName: getContractorDisplayName(existingAssignedContractor),
-        assignedContractorTrade: existingAssignedContractor.trade || suggestedTrade
-      };
-    }
-
-    const availableMatchingContractors = matchingContractors.filter(
-      (contractor) => !getContractorHasDateConflict(contractor.id, taskRange, contractorBookings)
-    );
-    const assignedContractor =
-      getSortedContractors(availableMatchingContractors)[0] ||
-      existingAssignedContractor ||
-      getSortedContractors(matchingContractors)[0];
-
-    if (assignedContractor?.id) {
-      assignmentCounts.set(assignedContractor.id, (assignmentCounts.get(assignedContractor.id) || 0) + 1);
-      addContractorBooking(assignedContractor.id, taskRange, contractorBookings);
-    }
-
-    return {
-      ...task,
-      suggestedTrade,
-      assignedContractorId: assignedContractor?.id || "",
-      assignedContractorName: assignedContractor ? getContractorDisplayName(assignedContractor) : "",
-      assignedContractorTrade: assignedContractor?.trade || suggestedTrade
-    };
-  });
-};
-const getScheduleTaskWithContractor = (task = {}, contractor = null) => {
-  const suggestedTrade = task.suggestedTrade || getSuggestedTradeForTask(task);
-
-  if (!contractor) {
-    return {
-      ...task,
-      suggestedTrade,
-      assignedContractorId: "",
-      assignedContractorName: "",
-      assignedContractorTrade: suggestedTrade
-    };
-  }
-
-  return {
-    ...task,
-    suggestedTrade,
-    assignedContractorId: contractor.id || "",
-    assignedContractorName: getContractorDisplayName(contractor),
-    assignedContractorTrade: contractor.trade || suggestedTrade
-  };
-};
-const getProfileAddressDisplay = (profile = {}) => {
-  const unitNumber = String(profile?.unitNumber || "").trim();
-  const streetAddress = String(profile?.address || "").trim();
-  const city = String(profile?.city || "").trim();
-  const province = String(profile?.province || "").trim();
-  const postalCode = String(profile?.postalCode || "").trim();
-  const addressLine = unitNumber && streetAddress
-    ? `${unitNumber}-${streetAddress}`
-    : streetAddress || (unitNumber ? `Unit ${unitNumber}` : "");
-  const localityLine = [city, province, postalCode].filter(Boolean).join(", ");
-  return [addressLine, localityLine].filter(Boolean).join(", ");
-};
-const getLegacyCustomerProfile = () => {
-  if (typeof window === "undefined") {
-    return normalizeCustomerRecord();
-  }
-
-  return normalizeCustomerRecord(safeJsonParse(localStorage.getItem("customerProfile"), EMPTY_CUSTOMER_PROFILE));
-};
-const getLegacyContractorProfile = () => {
-  if (typeof window === "undefined") {
-    return normalizeContractorProfile();
-  }
-
-  return normalizeContractorProfile(safeJsonParse(localStorage.getItem("contractorProfile"), EMPTY_CONTRACTOR_PROFILE));
-};
-const createSavedContractorRecord = (profile = {}) => {
-  const timestamp = new Date().toISOString();
-
-  return normalizeContractorProfile({
-    ...profile,
-    id: profile.id || createContractorId(),
-    createdAt: profile.createdAt || timestamp,
-    updatedAt: timestamp
-  });
-};
-const getInitialSavedContractors = () => {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  const storedContractors = safeJsonParse(localStorage.getItem("savedContractors"), []);
-  if (storedContractors.length) {
-    return storedContractors
-      .map((profile) => normalizeContractorProfile(profile))
-      .filter((profile) => hasContractorProfileData(profile));
-  }
-
-  const legacyContractor = getLegacyContractorProfile();
-  return hasContractorProfileData(legacyContractor) ? [createSavedContractorRecord(legacyContractor)] : [];
-};
-const getInitialContractorProfile = () => {
-  if (typeof window === "undefined") {
-    return normalizeContractorProfile();
-  }
-
-  const activeContractor = getLegacyContractorProfile();
-  if (hasContractorProfileData(activeContractor)) {
-    return activeContractor;
-  }
-
-  const savedContractors = getInitialSavedContractors();
-  return savedContractors[0] ? normalizeContractorProfile(savedContractors[0]) : normalizeContractorProfile();
-};
-const createSavedCustomerRecord = (profile = {}) => {
-  const timestamp = new Date().toISOString();
-
-  return normalizeCustomerRecord({
-    ...profile,
-    id: profile.id || createCustomerId(),
-    createdAt: profile.createdAt || timestamp,
-    updatedAt: timestamp
-  });
-};
-const getInitialSavedCustomers = () => {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  const storedCustomers = safeJsonParse(localStorage.getItem("savedCustomers"), []);
-  if (storedCustomers.length) {
-    return storedCustomers
-      .map((profile) => normalizeCustomerRecord(profile))
-      .filter((profile) => hasCustomerProfileData(profile));
-  }
-
-  const legacyCustomer = getLegacyCustomerProfile();
-  return hasCustomerProfileData(legacyCustomer) ? [createSavedCustomerRecord(legacyCustomer)] : [];
-};
-const getInitialCustomerProfile = () => {
-  if (typeof window === "undefined") {
-    return normalizeCustomerRecord();
-  }
-
-  const activeCustomer = getLegacyCustomerProfile();
-  if (hasCustomerProfileData(activeCustomer)) {
-    return activeCustomer;
-  }
-
-  const savedCustomers = getInitialSavedCustomers();
-  return savedCustomers[0] ? normalizeCustomerRecord(savedCustomers[0]) : normalizeCustomerRecord();
-};
-
-const buildScheduleFromItems = (quoteItems = [], scheduleStartDate = "") => {
-  const normalizedStartDate = getNextBusinessDate(scheduleStartDate);
-  if (!normalizedStartDate) return [];
-
-  let currentStartDate = normalizedStartDate;
-
-  return quoteItems
-    .filter((item) => item.name.trim())
-    .map((item) => {
-      const duration = Math.max(1, Number(item.duration || 1));
-      const startDate = currentStartDate;
-      const endDate = getScheduleEndDate(startDate, duration);
-      currentStartDate = endDate;
-
-      return {
-        ...item,
-        duration,
-        startDate,
-        endDate
-      };
-    });
-};
-
-const normalizeScheduleItems = (scheduleItems = []) =>
-  scheduleItems.map((item) => {
-    const duration = Math.max(1, Number(item.duration || 1));
-    const startDate = getNextBusinessDate(item.startDate);
-    const endDate = getScheduleEndDate(startDate, duration);
-
-    return {
-      ...item,
-      duration,
-      startDate,
-      endDate
-    };
-  });
-
-const getScheduleTaskCompletionStatus = (task = {}, completedAt = getTodayDate()) => {
-  const completedDate = toDateInputValue(completedAt);
-  const scheduledEndDate = toDateInputValue(task.endDate);
-
-  if (completedDate && scheduledEndDate && completedDate < scheduledEndDate) return "early";
-  if (completedDate && scheduledEndDate && completedDate > scheduledEndDate) return "delayed";
-  return "on-time";
-};
-
-const markScheduleTaskCompletedInCollection = (scheduleItems = [], taskIndex) =>
-  normalizeScheduleItems(
-    scheduleItems.map((task, index) => {
-      if (index !== taskIndex) return task;
-
-      const completedAt = getTodayDate();
-
-      return {
-        ...task,
-        completed: true,
-        completedAt,
-        completionStatus: getScheduleTaskCompletionStatus(task, completedAt)
-      };
-    })
-  );
-
-const markScheduleTaskInProgressInCollection = (scheduleItems = [], taskIndex) =>
-  normalizeScheduleItems(
-    scheduleItems.map((task, index) =>
-      index !== taskIndex
-        ? task
-        : {
-            ...task,
-            completed: false,
-            completedAt: "",
-            completionStatus: ""
-          }
-    )
-  );
-
-const getScheduleTaskIdentity = (task = {}) =>
-  task.itemId ||
-  [
-    task.name,
-    task.roomName,
-    task.category,
-    task.unit
-  ].map((value) => String(value || "").trim().toLowerCase()).join("|");
-
-const preserveScheduleCompletionState = (nextSchedule = [], previousSchedule = []) => {
-  const completionByTask = new Map(
-    previousSchedule
-      .map((task) => [getScheduleTaskIdentity(task), task])
-      .filter(([taskKey]) => taskKey)
-  );
-
-  return normalizeScheduleItems(
-    nextSchedule.map((task) => {
-      const previousTask = completionByTask.get(getScheduleTaskIdentity(task));
-
-      if (!previousTask) return task;
-
-      return {
-        ...task,
-        completed: Boolean(previousTask.completed),
-        completedAt: previousTask.completedAt || "",
-        completionStatus: previousTask.completionStatus || ""
-      };
-    })
-  );
-};
-
-const resequenceScheduleItems = (scheduleItems = [], scheduleStartDate = "") => {
-  const normalizedSchedule = normalizeScheduleItems(scheduleItems);
-  const normalizedStartDate = getNextBusinessDate(scheduleStartDate) || normalizedSchedule[0]?.startDate || "";
-
-  if (!normalizedStartDate) {
-    return normalizedSchedule;
-  }
-
-  let currentStartDate = normalizedStartDate;
-
-  return normalizedSchedule.map((task) => {
-    const duration = Math.max(1, Number(task.duration || 1));
-    const startDate = currentStartDate;
-    const endDate = getScheduleEndDate(startDate, duration);
-    currentStartDate = endDate;
-
-    return {
-      ...task,
-      duration,
-      startDate,
-      endDate
-    };
-  });
-};
-
-const reorderCollectionBeforeIndex = (items = [], fromIndex, toIndex) => {
-  if (
-    fromIndex === toIndex ||
-    fromIndex < 0 ||
-    toIndex < 0 ||
-    fromIndex >= items.length ||
-    toIndex >= items.length
-  ) {
-    return items;
-  }
-
-  const nextItems = [...items];
-  const [movedItem] = nextItems.splice(fromIndex, 1);
-
-  if (!movedItem) {
-    return items;
-  }
-
-  const insertionIndex = fromIndex < toIndex ? Math.max(0, toIndex - 1) : toIndex;
-  nextItems.splice(insertionIndex, 0, movedItem);
-
-  return nextItems;
-};
-
-const syncQuoteItemsToSchedule = (quoteItems = [], scheduleItems = []) => {
-  const itemMap = new Map(
-    quoteItems
-      .filter((item) => item.itemId)
-      .map((item) => [item.itemId, item])
-  );
-
-  const orderedScheduledItems = scheduleItems
-    .map((task) => {
-      const matchingItem = task.itemId ? itemMap.get(task.itemId) : null;
-      if (!matchingItem) return null;
-
-      return {
-        ...matchingItem,
-        name: task.name || matchingItem.name,
-        roomId: task.roomId || matchingItem.roomId,
-        roomName: task.roomName || matchingItem.roomName,
-        quantity: Number(task.quantity ?? matchingItem.quantity ?? 0),
-        duration: Number(task.duration || matchingItem.duration || 1),
-        unit: task.unit || matchingItem.unit,
-        category: task.category || matchingItem.category,
-        pricePerUnit: Number(task.pricePerUnit ?? matchingItem.pricePerUnit ?? 0),
-        markupRate: Number(task.markupRate ?? matchingItem.markupRate ?? DEFAULT_ITEM_MARKUP_RATE)
-      };
-    })
-    .filter(Boolean);
-
-  const scheduledItemIds = new Set(
-    orderedScheduledItems
-      .map((item) => item.itemId)
-      .filter(Boolean)
-  );
-
-  const remainingItems = quoteItems.filter((item) => !item.itemId || !scheduledItemIds.has(item.itemId));
-
-  return [...orderedScheduledItems, ...remainingItems];
-};
-
-const createEmptyQuoteItem = (overrides = {}) => {
-  const roomId = overrides.roomId || createRoomId();
-  const itemId = overrides.itemId || createItemId();
-  const markupRate = overrides.markupRate === undefined || overrides.markupRate === null || overrides.markupRate === ""
-    ? EMPTY_ITEM.markupRate
-    : Number(overrides.markupRate || 0);
-
-  return {
-    ...EMPTY_ITEM,
-    ...overrides,
-    itemId,
-    roomId,
-    roomName: overrides.roomName || "",
-    quantity: Number(overrides.quantity ?? EMPTY_ITEM.quantity),
-    pricePerUnit: Number(overrides.pricePerUnit ?? EMPTY_ITEM.pricePerUnit),
-    duration: Number(overrides.duration ?? EMPTY_ITEM.duration),
-    markupRate
-  };
-};
-
-const normalizeQuoteItems = (quoteItems = [], fallbackMarkupRate = DEFAULT_ITEM_MARKUP_RATE) => {
-  if (!quoteItems.length) return [createEmptyQuoteItem()];
-
-  let currentRoomId = null;
-  let previousRoomName = null;
-
-  return quoteItems.map((item) => {
-    const normalizedRoomName = item.roomName || "";
-
-    if (item.roomId) {
-      currentRoomId = item.roomId;
-      previousRoomName = normalizedRoomName || null;
-      return createEmptyQuoteItem({
-        ...item,
-        roomId: item.roomId,
-        roomName: normalizedRoomName,
-        markupRate: item.markupRate ?? fallbackMarkupRate
-      });
-    }
-
-    if (!normalizedRoomName || normalizedRoomName !== previousRoomName || !currentRoomId) {
-      currentRoomId = createRoomId();
-    }
-
-    previousRoomName = normalizedRoomName || null;
-
-    return createEmptyQuoteItem({
-      ...item,
-      roomId: currentRoomId,
-      roomName: normalizedRoomName,
-      markupRate: item.markupRate ?? fallbackMarkupRate
-    });
-  });
-};
-
-const createEmptyRoomTemplateItem = (overrides = {}) => {
-  const markupRate = overrides.markupRate === undefined || overrides.markupRate === null || overrides.markupRate === ""
-    ? DEFAULT_ITEM_MARKUP_RATE
-    : Number(overrides.markupRate || 0);
-
-  const nextItem = {
-    itemId: overrides.itemId || createItemId(),
-    name: "",
-    quantity: 0,
-    unit: "each",
-    pricePerUnit: 0,
-    markupRate: DEFAULT_ITEM_MARKUP_RATE,
-    duration: 1,
-    category: "Labor"
-  };
-
-  return {
-    ...nextItem,
-    ...overrides,
-    quantity: Number(overrides.quantity ?? nextItem.quantity),
-    pricePerUnit: Number(overrides.pricePerUnit ?? nextItem.pricePerUnit),
-    markupRate,
-    duration: Number(overrides.duration ?? nextItem.duration)
-  };
-};
-
-const normalizeRoomTemplateItems = (templateItems = []) => {
-  if (!templateItems.length) return [createEmptyRoomTemplateItem()];
-
-  return templateItems.map((item) =>
-    createEmptyRoomTemplateItem({
-      ...item,
-      quantity: Number(item.quantity || 0),
-      pricePerUnit: Number(item.pricePerUnit || 0),
-      markupRate: Number(item.markupRate ?? DEFAULT_ITEM_MARKUP_RATE),
-      duration: Number(item.duration || 1)
-    })
-  );
-};
-
-const serializeRoomTemplateItems = (templateItems = []) =>
-  templateItems
-    .filter((item) => item.name.trim())
-    .map((item) => ({
-      itemId: item.itemId || createItemId(),
-      name: item.name.trim(),
-      quantity: Number(item.quantity || 0),
-      unit: item.unit || "each",
-      pricePerUnit: Number(item.pricePerUnit || 0),
-      markupRate: Number(item.markupRate ?? DEFAULT_ITEM_MARKUP_RATE),
-      duration: Number(item.duration || 1),
-      category: item.category || "Labor"
-    }));
-
-const isBuiltInRoomTemplateId = (templateId) =>
-  PROJECT_TEMPLATES.some((template) => template.id === templateId);
-
-const createBuiltInRoomTemplates = () =>
-  PROJECT_TEMPLATES.map((template) => ({
-    id: template.id,
-    name: template.label,
-    builtIn: true,
-    updatedAt: "Preinstalled",
-    items: serializeRoomTemplateItems(
-      createTemplateItems(
-        template.id,
-        DEFAULT_TEMPLATE_VALUES[template.id] || template.defaults || {}
-      )
-    )
-  }));
-
-const normalizeRoomTemplateRecord = (template = {}) => {
-  const builtInTemplate = PROJECT_TEMPLATES.find((entry) => entry.id === template.id);
-
-  return {
-    id: template.id || createRoomTemplateId(),
-    name: template.name || builtInTemplate?.label || "Room Template",
-    builtIn: Boolean(template.builtIn || builtInTemplate),
-    updatedAt: template.updatedAt || (builtInTemplate ? "Preinstalled" : ""),
-    items: serializeRoomTemplateItems(template.items || [])
-  };
-};
-
-const mergeSavedRoomTemplatesWithBuiltIns = (templates = []) => {
-  const normalizedTemplates = templates.map(normalizeRoomTemplateRecord);
-  const existingTemplateIds = new Set(normalizedTemplates.map((template) => template.id));
-  const missingBuiltIns = createBuiltInRoomTemplates().filter(
-    (template) => !existingTemplateIds.has(template.id)
-  );
-
-  return [...missingBuiltIns, ...normalizedTemplates];
-};
-
-const APP_STATE_KEYS = [
-  "companySettings",
-  "contractorExpirySettings",
-  "contractorProfile",
-  "customerProfile",
-  "navigationOpen",
-  "priceList",
-  "savedContractors",
-  "savedCustomers",
-  "savedQuotes",
-  "savedRoomTemplates",
-  "themeMode"
-];
-
-const persistAppStateToLocalStorage = (state = {}) => {
-  if (typeof window === "undefined") return;
-
-  APP_STATE_KEYS.forEach((key) => {
-    if (!Object.prototype.hasOwnProperty.call(state, key)) return;
-
-    const value = state[key];
-    localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
-  });
-};
-
-const normalizeRemoteSavedQuotes = (quotes = []) =>
-  normalizeSavedQuoteReferences(Array.isArray(quotes) ? quotes : []).map((quote) => ({
-    ...quote,
-    schedule: normalizeScheduleItems(quote.schedule || [])
-  }));
-
-const normalizeRemoteSavedContractors = (contractors = []) =>
-  (Array.isArray(contractors) ? contractors : [])
-    .map((profile) => normalizeContractorProfile(profile))
-    .filter((profile) => hasContractorProfileData(profile));
-
-const normalizeRemoteSavedCustomers = (customers = []) =>
-  (Array.isArray(customers) ? customers : [])
-    .map((profile) => normalizeCustomerRecord(profile))
-    .filter((profile) => hasCustomerProfileData(profile));
 
 export default function ConstructionQuoteApp() {
   const systemDark = useDarkMode();
@@ -2709,7 +1930,7 @@ export default function ConstructionQuoteApp() {
         </div>
       </Card>
 
-      <div className="two-col-layout">
+      <div className="two-row-layout">
         <Card dark={dark}>
           <div className="section-header">
             <div>

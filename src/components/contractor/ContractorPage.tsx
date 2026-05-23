@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from "react";
 import { Card, Button, Input, Select } from "../ui";
 

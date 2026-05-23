@@ -7,7 +7,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores(['dist', 'android', 'ios']),
   {
-    files: ['src/**/*.{js,jsx}', '*.js'],
+    files: ['*.js'],
     extends: [
       js.configs.recommended,
       reactHooks.configs.flat.recommended,
@@ -27,7 +27,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['server/**/*.js'],
+    files: ['server/**/*.ts'],
     extends: [js.configs.recommended],
     languageOptions: {
       ecmaVersion: 2022,

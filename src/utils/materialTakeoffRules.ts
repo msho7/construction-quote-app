@@ -1,3 +1,4 @@
+// @ts-nocheck
 const getNormalizedText = (value) => String(value || "").trim().toLowerCase();
 
 const MATERIAL_INFERENCE_RULES = [

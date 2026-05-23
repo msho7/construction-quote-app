@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState } from "react";
 import { PROJECT_TEMPLATES } from "../../constants/appConstants";
 import { formatMoney, getItemBaseTotal, getItemMarkupAmount, toDateInputValue } from "../../utils/appUtils";

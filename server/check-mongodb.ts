@@ -1,4 +1,4 @@
-import { closeMongoConnection, getMongoDb } from "./mongodb.js";
+import { closeMongoConnection, getMongoDb } from "./mongodb.ts";
 
 try {
   const db = await getMongoDb();

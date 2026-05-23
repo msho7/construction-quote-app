@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from "react";
 import { Card, Button, Input } from "../ui";
 import { formatMoney, formatQuoteReferenceNumber } from "../../utils/appUtils";

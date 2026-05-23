@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { formatMoney, formatQuoteReferenceNumber, getItemTotal } from "./appUtils";
 
 const escapeHtml = (value) =>

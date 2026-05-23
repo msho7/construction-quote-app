@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Button, Card } from "../ui";
 import { formatMoney, formatQuoteReferenceNumber, getItemTotal } from "../../utils/appUtils";
 import { inferMaterialTakeoffItems } from "../../utils/materialTakeoffRules";

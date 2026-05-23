@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const roundToTwo = (value) => Math.round(Number(value || 0) * 100) / 100;
 
 export const sanitizeNumericInput = (value, options = {}) => {

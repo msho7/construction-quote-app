@@ -1,6 +1,6 @@
 import http from "node:http";
 import { URL } from "node:url";
-import { getMongoDb } from "./mongodb.js";
+import { getMongoDb } from "./mongodb.ts";
 
 const port = Number(process.env.PORT || 3001);
 const host = process.env.HOST || "127.0.0.1";

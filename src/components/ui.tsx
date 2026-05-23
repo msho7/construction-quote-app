@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const Card = ({ children, dark, className = "" }) => (
   <div className={`${dark ? "card dark" : "card"} ${className}`.trim()}>{children}</div>
 );

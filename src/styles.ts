@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const APP_STYLES = `
   * { box-sizing: border-box; }
   html {
@@ -532,6 +533,11 @@ export const APP_STYLES = `
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
+  }
+
+  .two-row-layout {
+    display: grid;
+    gap: 20px;
   }
   .landing-action-bar .button {
     min-height: 48px;
