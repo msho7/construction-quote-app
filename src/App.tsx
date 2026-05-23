@@ -1,10 +1,7 @@
 // @ts-nocheck
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
-import { APP_STYLES } from "./styles";
 import { useDarkMode } from "./hooks/useDarkMode";
 import {
-  PAGE_OPTIONS,
   PROJECT_TEMPLATES,
   DEFAULT_ITEM_MARKUP_RATE,
   EMPTY_PRICE_ITEM,
@@ -26,6 +23,11 @@ import {
   createTemplateItems
 } from "./utils/appUtils";
 import { getTodayDate } from "./utils/dateUtils";
+import {
+  getDashboardRecords,
+  getQuoteLocation,
+  getQuoteScheduleStatus as getDashboardQuoteScheduleStatus
+} from "./utils/dashboardUtils";
 import { createQuoteId, createRoomId, createRoomTemplateId } from "./utils/idUtils";
 import { getNormalizedItemName, getNormalizedText } from "./utils/textUtils";
 import {
@@ -79,10 +81,16 @@ import {
   persistAppStateToLocalStorage
 } from "./utils/storageUtils";
 import { exportQuoteToExcel, exportQuoteToPdf } from "./utils/exportUtils";
+import {
+  getCurrentQuoteTakeoffPayload as buildCurrentQuoteTakeoffPayload,
+  getDefaultExportFileName as buildDefaultExportFileName,
+  getQuoteDocumentPayload as buildQuoteDocumentPayload
+} from "./utils/quotePayloadUtils";
 import { Card } from "./components/ui";
 import AnalysisPage from "./components/analysis/AnalysisPage";
 import CustomerPage from "./components/customer/CustomerPage";
 import DashboardHomePage from "./components/dashboard/DashboardHomePage";
+import AppShell from "./components/layout/AppShell";
 import PriceListPage from "./components/pricelist/PriceListPage";
 import QuoteBuilderPage from "./components/quotes/QuoteBuilderPage";
 import QuotesLandingPage from "./components/quotes/QuotesLandingPage";
@@ -1505,101 +1513,34 @@ export default function ConstructionQuoteApp() {
     return { subtotal, markup, tax, total: subtotal + markup + tax };
   }, [items, taxRate]);
 
-  const getCurrentQuoteTakeoffPayload = () => {
-    const existingQuote = editingQuoteId
-      ? savedQuotes.find((savedQuote) => savedQuote.id === editingQuoteId)
-      : null;
-    const normalizedQuoteCustomerProfile = hasCustomerProfileData(quoteCustomerProfile)
-      ? normalizeCustomerRecord(quoteCustomerProfile)
-      : null;
-    const normalizedQuoteContractorProfile = hasContractorProfileData(contractorProfile)
-      ? normalizeContractorProfile(contractorProfile, contractorExpirySettings)
-      : null;
-    const projectNumber = existingQuote?.projectNumber || getNextQuoteProjectNumber(savedQuotes);
-    const quoteStatus = existingQuote?.status || "open";
-    const invoicePartNumber = existingQuote?.invoicePartNumber || 1;
+  const getQuotePayloadContext = () => ({
+    editingQuoteId,
+    savedQuotes,
+    quoteCustomerProfile,
+    contractorProfile,
+    contractorExpirySettings,
+    projectTitle,
+    clientName,
+    selectedQuoteCustomerId,
+    projectAddress,
+    quoteDate,
+    startDate,
+    taxRate,
+    items,
+    totals,
+    schedule,
+    savedContractors,
+    showNotification
+  });
 
-    return {
-      ...(existingQuote || {}),
-      id: editingQuoteId || existingQuote?.id || null,
-      projectNumber,
-      status: quoteStatus,
-      invoicePartNumber,
-      projectTitle: projectTitle || existingQuote?.projectTitle || `Quote ${savedQuotes.length + 1}`,
-      clientName,
-      customerId: selectedQuoteCustomerId || normalizedQuoteCustomerProfile?.id || "",
-      customerProfile: normalizedQuoteCustomerProfile,
-      contractorProfile: normalizedQuoteContractorProfile,
-      projectAddress,
-      quoteDate,
-      startDate,
-      taxRate: Number(taxRate || 0),
-      items,
-      totals,
-      schedule,
-      takeoffSource: "Current quote draft"
-    };
-  };
+  const getCurrentQuoteTakeoffPayload = () =>
+    buildCurrentQuoteTakeoffPayload(getQuotePayloadContext());
 
-  const getQuoteDocumentPayload = () => {
-    const existingQuote = editingQuoteId
-      ? savedQuotes.find((savedQuote) => savedQuote.id === editingQuoteId)
-      : null;
-    const filledItems = items.filter((item) => item.name.trim());
-    const normalizedQuoteCustomerProfile = hasCustomerProfileData(quoteCustomerProfile)
-      ? normalizeCustomerRecord(quoteCustomerProfile)
-      : null;
-    const normalizedQuoteContractorProfile = hasContractorProfileData(contractorProfile)
-      ? normalizeContractorProfile(contractorProfile, contractorExpirySettings)
-      : null;
-    const projectNumber = existingQuote?.projectNumber || getNextQuoteProjectNumber(savedQuotes);
-    const quoteStatus = existingQuote?.status || "open";
-    const invoicePartNumber = existingQuote?.invoicePartNumber || 1;
+  const getQuoteDocumentPayload = () =>
+    buildQuoteDocumentPayload(getQuotePayloadContext());
 
-    if (!filledItems.length) {
-      showNotification("Add at least one quote item before exporting.", "warning");
-      return null;
-    }
-
-    return {
-      id: editingQuoteId || null,
-      projectNumber,
-      status: quoteStatus,
-      invoicePartNumber,
-      quoteNumber: formatQuoteReferenceNumber({
-        projectNumber,
-        status: quoteStatus,
-        invoicePartNumber
-      }),
-      projectTitle: projectTitle || `Quote ${savedQuotes.length + 1}`,
-      clientName,
-      projectAddress,
-      quoteDate,
-      startDate,
-      createdAt: new Date().toLocaleString(),
-      taxRate: Number(taxRate || 0),
-      validForDays: 14,
-      contractorProfile: normalizedQuoteContractorProfile,
-      customerId: selectedQuoteCustomerId || normalizedQuoteCustomerProfile?.id || "",
-      customerProfile: normalizedQuoteCustomerProfile,
-      items: filledItems,
-      totals: {
-        subtotal: Number(totals.subtotal || 0),
-        markup: Number(totals.markup || 0),
-        tax: Number(totals.tax || 0),
-        total: Number(totals.total || 0)
-      },
-      schedule: assignContractorsToSchedule(
-        schedule.filter((task) => task.name?.trim()),
-        savedContractors
-      )
-    };
-  };
-
-  const getDefaultExportFileName = () => {
-    const baseName = projectTitle.trim() || `Quote ${savedQuotes.length + 1}`;
-    return baseName;
-  };
+  const getDefaultExportFileName = () =>
+    buildDefaultExportFileName({ projectTitle, savedQuotes });
 
   const openExportModal = () => {
     const quote = getQuoteDocumentPayload();
@@ -1857,58 +1798,14 @@ export default function ConstructionQuoteApp() {
   const savedTakeoffQuote = savedQuotes.find((quote) => quote.id === selectedTakeoffQuoteId) || null;
   const selectedTakeoffQuote = selectedTakeoffQuoteDraft || savedTakeoffQuote || null;
   const todayDate = getTodayDate();
-  const openQuoteRecords = savedQuotes.filter((quote) => (quote.status || "open") === "open");
-  const ongoingJobRecords = savedQuotes.filter((quote) => {
-    const status = quote.status || "open";
-    const start = toDateInputValue(quote.startDate);
-
-    return (
-      ["approved", "ongoing"].includes(status) &&
-      start &&
-      start <= todayDate
-    );
-  });
-  const getQuoteLocation = (quote = {}) =>
-    quote.projectAddress ||
-    getProfileAddressDisplay(quote.customerProfile) ||
-    "No location saved";
-  const getQuoteScheduleStatus = (quote = {}) => {
-    const scheduleItems = quote.schedule || [];
-
-    if (scheduleItems.some((task) => task.completionStatus === "delayed")) {
-      return "delayed";
-    }
-
-    if (scheduleItems.some((task) => !task.completed && toDateInputValue(task.endDate) && toDateInputValue(task.endDate) < todayDate)) {
-      return "delayed";
-    }
-
-    return "on-time";
-  };
-  const onTimeJobRecords = ongoingJobRecords.filter((quote) => getQuoteScheduleStatus(quote) === "on-time");
-  const delayedJobRecords = ongoingJobRecords.filter((quote) => getQuoteScheduleStatus(quote) === "delayed");
-  const dashboardDetailConfig = {
-    ongoing: {
-      title: "Ongoing Jobs",
-      empty: "No ongoing jobs found.",
-      records: ongoingJobRecords
-    },
-    onTime: {
-      title: "On-Time Jobs",
-      empty: "No on-time jobs found.",
-      records: onTimeJobRecords
-    },
-    delayed: {
-      title: "Delayed Jobs",
-      empty: "No delayed jobs found.",
-      records: delayedJobRecords
-    },
-    openQuotes: {
-      title: "Open Quotes Not Approved",
-      empty: "No open quotes waiting for approval.",
-      records: openQuoteRecords
-    }
-  };
+  const {
+    openQuoteRecords,
+    ongoingJobRecords,
+    onTimeJobRecords,
+    delayedJobRecords,
+    dashboardDetailConfig
+  } = getDashboardRecords(savedQuotes, todayDate);
+  const getQuoteScheduleStatus = (quote = {}) => getDashboardQuoteScheduleStatus(quote, todayDate);
   const activeDashboardDetail = dashboardDetailView ? dashboardDetailConfig[dashboardDetailView] : null;
 
   const renderAnalysis = () => (
@@ -2203,7 +2100,6 @@ export default function ConstructionQuoteApp() {
     />
   );
 
-  const MotionDiv = motion.div;
   const closeNavigationOnSmallScreen = () => {
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 1100px)").matches) {
       setNavigationOpen(false);
@@ -2222,106 +2118,47 @@ export default function ConstructionQuoteApp() {
   };
 
   return (
-    <>
-      <style>{APP_STYLES}</style>
-      <div
-        className={[
-          "app-shell",
-          dark ? "dark" : "",
-          navigationOpen ? "navigation-open" : "navigation-closed"
-        ].filter(Boolean).join(" ")}
-      >
-        <aside className="sidebar">
-          <div className="sidebar-header">
-            {navigationOpen ? (
-              <div>
-                <h2 className="sidebar-title">🏗️</h2>
-                <p className="sidebar-subtitle">Construction quoting and scheduling</p>
-              </div>
-            ) : null}
-            <button
-              className="sidebar-toggle"
-              type="button"
-              onClick={() => setNavigationOpen((open) => !open)}
-              aria-label={navigationOpen ? "Close navigation" : "Open navigation"}
-              aria-expanded={navigationOpen}
-            >
-              {navigationOpen ? "‹" : "☰"}
-            </button>
-          </div>
+    <AppShell
+      dark={dark}
+      currentPage={currentPage}
+      navigationOpen={navigationOpen}
+      setNavigationOpen={setNavigationOpen}
+      openNavigationPage={openNavigationPage}
+      notification={notification}
+      onDismissNotification={() => setNotification(null)}
+    >
+      {currentPage === "dashboard" && renderDashboard()}
+      {currentPage === "analysis" && renderAnalysis()}
+      {currentPage === "contractor" && renderContractor()}
+      {currentPage === "customer" && renderCustomer()}
+      {currentPage === "quotes" && quotesView === "landing" && (
+        <QuotesLandingPage
+          key={`${quotesCustomerFilter?.id || quotesCustomerFilter?.label || "all"}:${quotesInitialProjectList || "approved"}`}
+          dark={dark}
+          savedQuotes={savedQuotes}
+          customerFilter={quotesCustomerFilter}
+          initialProjectList={quotesInitialProjectList}
+          onClearCustomerFilter={() => {
+            setQuotesCustomerFilter(null);
+            setQuotesInitialProjectList("");
+          }}
+          onNewQuote={startNewQuote}
+          onOpenQuote={loadQuote}
+          onOpenQuoteSchedule={(quote) => openApprovedQuoteSchedule(quote.id)}
+          onOpenMaterialTakeoff={(quote) => openMaterialTakeoff(quote.id)}
+          onToggleQuoteApproval={toggleQuoteApproval}
+          onDeleteQuote={deleteUnapprovedQuote}
+          onIncrementQuoteInvoicePart={incrementQuoteInvoicePart}
+          onSetQuoteProjectStatus={setQuoteProjectStatus}
+        />
+      )}
+      {currentPage === "quotes" && quotesView === "builder" && renderQuotes()}
+      {currentPage === "schedule" && renderSchedule()}
+      {currentPage === "takeoff" && renderTakeoff()}
+      {currentPage === "pricelist" && renderPriceList()}
+      {currentPage === "server" && renderServer()}
+      {currentPage === "settings" && renderSettings()}
 
-          {navigationOpen ? (
-            <nav className="nav-list">
-              {PAGE_OPTIONS.map((page) => (
-                <button
-                  key={page.id}
-                  className={`nav-item ${currentPage === page.id ? "active" : ""}`}
-                  type="button"
-                  onClick={() => openNavigationPage(page.id)}
-                >
-                  {page.label}
-                </button>
-              ))}
-            </nav>
-          ) : null}
-        </aside>
-
-        <main className="main-content">
-          <MotionDiv initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="page-header">
-              <div>
-                <h1>🏗️ Construction Quote Generator</h1>
-                <p>Build quotes, manage pricing, and generate project schedules.</p>
-              </div>
-            </div>
-
-            {currentPage === "dashboard" && renderDashboard()}
-            {currentPage === "analysis" && renderAnalysis()}
-            {currentPage === "contractor" && renderContractor()}
-            {currentPage === "customer" && renderCustomer()}
-            {currentPage === "quotes" && quotesView === "landing" && (
-              <QuotesLandingPage
-                key={`${quotesCustomerFilter?.id || quotesCustomerFilter?.label || "all"}:${quotesInitialProjectList || "approved"}`}
-                dark={dark}
-                savedQuotes={savedQuotes}
-                customerFilter={quotesCustomerFilter}
-                initialProjectList={quotesInitialProjectList}
-                onClearCustomerFilter={() => {
-                  setQuotesCustomerFilter(null);
-                  setQuotesInitialProjectList("");
-                }}
-                onNewQuote={startNewQuote}
-                onOpenQuote={loadQuote}
-                onOpenQuoteSchedule={(quote) => openApprovedQuoteSchedule(quote.id)}
-                onOpenMaterialTakeoff={(quote) => openMaterialTakeoff(quote.id)}
-                onToggleQuoteApproval={toggleQuoteApproval}
-                onDeleteQuote={deleteUnapprovedQuote}
-                onIncrementQuoteInvoicePart={incrementQuoteInvoicePart}
-                onSetQuoteProjectStatus={setQuoteProjectStatus}
-              />
-            )}
-            {currentPage === "quotes" && quotesView === "builder" && renderQuotes()}
-            {currentPage === "schedule" && renderSchedule()}
-            {currentPage === "takeoff" && renderTakeoff()}
-            {currentPage === "pricelist" && renderPriceList()}
-            {currentPage === "server" && renderServer()}
-            {currentPage === "settings" && renderSettings()}
-          </MotionDiv>
-        </main>
-      </div>
-      {notification ? (
-        <div className={`app-notification ${notification.variant}`} role="status" aria-live="polite">
-          <span>{notification.message}</span>
-          <button
-            type="button"
-            className="app-notification-close"
-            aria-label="Dismiss notification"
-            onClick={() => setNotification(null)}
-          >
-            ×
-          </button>
-        </div>
-      ) : null}
-    </>
+    </AppShell>
   );
 }
