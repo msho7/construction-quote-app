@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import { APP_STYLES } from "./styles";
 import { useDarkMode } from "./hooks/useDarkMode";
 import {
-  UNIT_OPTIONS,
   PAGE_OPTIONS,
   PROJECT_TEMPLATES,
   DEFAULT_ITEM_MARKUP_RATE,
@@ -19,10 +18,8 @@ import {
   getScheduleEndDate,
   getItemBaseTotal,
   getItemMarkupAmount,
-  getItemTotal,
   mergeTemplateItemsWithPriceList,
   sanitizeNumericInput,
-  getNumericInputValue,
   formatQuoteReferenceNumber,
   getNextQuoteProjectNumber,
   normalizeSavedQuoteReferences,
@@ -82,12 +79,16 @@ import {
   persistAppStateToLocalStorage
 } from "./utils/storageUtils";
 import { exportQuoteToExcel, exportQuoteToPdf } from "./utils/exportUtils";
-import { Card, Button, Input, Select } from "./components/ui";
+import { Card } from "./components/ui";
 import AnalysisPage from "./components/analysis/AnalysisPage";
 import CustomerPage from "./components/customer/CustomerPage";
-import QuoteItemsTable from "./components/quotes/QuoteItemsTable";
+import DashboardHomePage from "./components/dashboard/DashboardHomePage";
+import PriceListPage from "./components/pricelist/PriceListPage";
+import QuoteBuilderPage from "./components/quotes/QuoteBuilderPage";
 import QuotesLandingPage from "./components/quotes/QuotesLandingPage";
 import SchedulePage from "./components/schedule/SchedulePage";
+import ServerPage from "./components/server/ServerPage";
+import SettingsPage from "./components/settings/SettingsPage";
 import MaterialTakeoffPage from "./components/takeoff/MaterialTakeoffPage";
 
 const ContractorPage = lazy(() => import("./components/contractor/ContractorPage"));
@@ -1921,441 +1922,90 @@ export default function ConstructionQuoteApp() {
   );
 
   const renderDashboard = () => (
-    <>
-      <Card dark={dark}>
-        <div className="button-row landing-action-bar">
-          <Button onClick={startNewQuote}>New Quote</Button>
-          <Button variant="secondary" onClick={openScheduleLanding}>View Schedules</Button>
-          <Button variant="secondary" onClick={openQuotesLanding}>View Quotes</Button>
-        </div>
-      </Card>
-
-      <div className="two-row-layout">
-        <Card dark={dark}>
-          <div className="section-header">
-            <div>
-              <h3>Job Tracker</h3>
-              <p className="row-subtitle">Active jobs, schedule risk, and quotes waiting for approval.</p>
-            </div>
-          </div>
-
-          <div className="dashboard-metric-grid">
-            <button type="button" className="dashboard-metric-button" onClick={() => setDashboardDetailView("ongoing")}>
-              <span>Ongoing Jobs</span>
-              <strong>{ongoingJobRecords.length}</strong>
-            </button>
-            <button type="button" className="dashboard-metric-button" onClick={() => setDashboardDetailView("onTime")}>
-              <span>Jobs On Time</span>
-              <strong>{onTimeJobRecords.length}</strong>
-            </button>
-            <button type="button" className="dashboard-metric-button" onClick={() => setDashboardDetailView("delayed")}>
-              <span>Jobs Delayed</span>
-              <strong>{delayedJobRecords.length}</strong>
-            </button>
-            <button type="button" className="dashboard-metric-button" onClick={() => setDashboardDetailView("openQuotes")}>
-              <span>Open Quotes</span>
-              <strong>{openQuoteRecords.length}</strong>
-            </button>
-          </div>
-
-          <div className="dashboard-job-list">
-            <h4>Ongoing Jobs</h4>
-            {ongoingJobRecords.length === 0 ? (
-              <p className="row-subtitle">No ongoing jobs yet.</p>
-            ) : (
-              <div className="list-table">
-                {ongoingJobRecords.slice(0, 4).map((quote) => (
-                  <div key={quote.id} className="list-row">
-                    <div>
-                      <button type="button" className="quote-title-button" onClick={() => openApprovedQuoteSchedule(quote.id)}>
-                        {formatQuoteReferenceNumber(quote)}
-                      </button>
-                      <div className="row-subtitle">{getQuoteLocation(quote)}</div>
-                    </div>
-                    <span className={`status-pill ${getQuoteScheduleStatus(quote)}`}>
-                      {getQuoteScheduleStatus(quote) === "delayed" ? "Delayed" : "On Time"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {activeDashboardDetail ? (
-            <div className="dashboard-detail-panel">
-              <div className="section-header">
-                <div>
-                  <h4>{activeDashboardDetail.title}</h4>
-                </div>
-                <Button variant="secondary" onClick={() => setDashboardDetailView("")}>Close</Button>
-              </div>
-              {activeDashboardDetail.records.length === 0 ? (
-                <p className="row-subtitle">{activeDashboardDetail.empty}</p>
-              ) : (
-                <div className="list-table">
-                  {activeDashboardDetail.records.map((quote) => (
-                    <div key={quote.id} className="list-row clickable" onClick={() => (quote.status || "open") === "open" ? loadQuote(quote) : openApprovedQuoteSchedule(quote.id)}>
-                      <div>
-                        <div className="row-title">{formatQuoteReferenceNumber(quote)} - {quote.projectTitle || "Untitled job"}</div>
-                        <div className="row-subtitle">{getQuoteLocation(quote)}</div>
-                      </div>
-                      <span className={`status-pill ${(quote.status || "open") === "open" ? "open" : getQuoteScheduleStatus(quote)}`}>
-                        {(quote.status || "open") === "open" ? "Open" : getQuoteScheduleStatus(quote) === "delayed" ? "Delayed" : "On Time"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : null}
-        </Card>
-
-        <Card dark={dark}>
-          <h3>Quick Actions</h3>
-          <div className="button-stack">
-            <Button variant="secondary" onClick={() => setCurrentPage("pricelist")}>Manage Price List</Button>
-            <Button variant="secondary" onClick={() => setCurrentPage("contractor")}>Manage Contractors</Button>
-            <Button variant="secondary" onClick={() => setCurrentPage("customer")}>Manage Customers</Button>
-          </div>
-        </Card>
-      </div>
-
-      <Card dark={dark}>
-        <h3>Recent Quotes</h3>
-        {savedQuotes.length === 0 ? (
-          <p>No saved quotes yet.</p>
-        ) : (
-          <div className="list-table">
-            {savedQuotes.slice(0, 5).map((quote) => (
-              <div key={quote.id} className="list-row clickable" onClick={() => loadQuote(quote)}>
-                <div>
-                  <div className="row-title">{quote.projectTitle}</div>
-                  <div className="row-subtitle">
-                    {formatQuoteReferenceNumber(quote)} • {quote.clientName || "No client name"}
-                  </div>
-                </div>
-                <div>{formatMoney(quote.totals?.total)}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-    </>
+    <DashboardHomePage
+      dark={dark}
+      savedQuotes={savedQuotes}
+      ongoingJobRecords={ongoingJobRecords}
+      onTimeJobRecords={onTimeJobRecords}
+      delayedJobRecords={delayedJobRecords}
+      openQuoteRecords={openQuoteRecords}
+      activeDashboardDetail={activeDashboardDetail}
+      getQuoteLocation={getQuoteLocation}
+      getQuoteScheduleStatus={getQuoteScheduleStatus}
+      onSetDashboardDetailView={setDashboardDetailView}
+      onStartNewQuote={startNewQuote}
+      onOpenScheduleLanding={openScheduleLanding}
+      onOpenQuotesLanding={openQuotesLanding}
+      onOpenPriceList={() => setCurrentPage("pricelist")}
+      onOpenContractors={() => setCurrentPage("contractor")}
+      onOpenCustomers={() => setCurrentPage("customer")}
+      onOpenApprovedQuoteSchedule={openApprovedQuoteSchedule}
+      onLoadQuote={loadQuote}
+    />
   );
 
   const renderQuotes = () => (
-    <>
-      <Card dark={dark}>
-        <div className="section-header">
-          <div>
-            <h3>{isCurrentQuoteLocked ? "Project Details" : "Project Info"}</h3>
-            <p className="row-subtitle">
-              {isCurrentQuoteLocked
-                ? "This project is complete, so it is locked for editing."
-                : "Use a template for repeat jobs like bathrooms, then add custom items if needed."}
-            </p>
-            {currentQuoteReference ? (
-              <div className="quote-reference-line">
-                Quote Reference: <strong>{currentQuoteReference}</strong>
-              </div>
-            ) : null}
-          </div>
-          <div className="button-row">
-            <Button variant="secondary" onClick={openQuotesLanding}>
-              Back To Quotes
-            </Button>
-            {isCurrentQuoteLocked && activeQuoteRecord ? (
-              <Button variant="secondary" onClick={() => openApprovedQuoteSchedule(activeQuoteRecord.id)}>
-                View Schedule
-              </Button>
-            ) : null}
-            {isCurrentQuoteApproved && activeQuoteRecord ? (
-              <Button variant="secondary" onClick={() => openMaterialTakeoff(activeQuoteRecord.id, getCurrentQuoteTakeoffPayload())}>
-                Material Takeoff
-              </Button>
-            ) : null}
-            {!isCurrentQuoteApproved && !isCurrentQuoteLocked ? (
-              <>
-                <Button variant="secondary" onClick={markQuoteApproved}>✅ Mark Approved</Button>
-                {activeQuoteRecord && (activeQuoteRecord.status || "open") === "open" ? (
-                  <Button variant="danger" onClick={() => deleteUnapprovedQuote(activeQuoteRecord)}>
-                    Delete Quote
-                  </Button>
-                ) : null}
-              </>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="grid three-col">
-          <label>
-            Project Title
-            <Input
-              placeholder="Project Title"
-              value={projectTitle}
-              disabled={isCurrentQuoteLocked}
-              onChange={(e) => setProjectTitle(e.target.value)}
-            />
-          </label>
-          <label>
-            Customer
-            <Select
-              value={selectedQuoteCustomerId}
-              onChange={(e) => selectQuoteCustomer(e.target.value)}
-              disabled={isCurrentQuoteLocked || (!savedCustomers.length && !selectedQuoteCustomerId)}
-            >
-              <option value="">
-                {savedCustomers.length ? "Select saved customer" : "No saved customers yet"}
-              </option>
-              {selectedQuoteCustomerId && !savedCustomers.some((customer) => customer.id === selectedQuoteCustomerId) && clientName ? (
-                <option value={selectedQuoteCustomerId}>{clientName} (Saved On Quote)</option>
-              ) : null}
-              {savedCustomers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {getCustomerDisplayName(customer)}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label>
-            Project Address
-            <Input
-              placeholder="Project Address"
-              value={projectAddress}
-              disabled={isCurrentQuoteLocked}
-              onChange={(e) => setProjectAddress(e.target.value)}
-            />
-          </label>
-          <label>
-            Quote Date
-            <Input
-              type="date"
-              value={quoteDate}
-              disabled={isCurrentQuoteLocked}
-              onChange={(e) => setQuoteDate(e.target.value)}
-            />
-          </label>
-          <label>
-            Tax:
-            <Input
-              type="text"
-              inputMode="decimal"
-              placeholder="Tax %"
-              value={getNumericInputValue(taxRate)}
-              disabled={isCurrentQuoteLocked}
-              onChange={(e) => setTaxRate(sanitizeNumericInput(e.target.value))}
-            />
-          </label>
-          <label>
-            Start Date
-            <Input
-            type="date"
-            value={startDate}
-            disabled={isCurrentQuoteLocked}
-            onChange={(e) => setStartDate(e.target.value)}
-            />
-          </label>
-          
-        </div>
-      </Card>
-
-      {showTemplateBuilder && !isCurrentQuoteLocked && (
-        <Card dark={dark} className="template-builder-card">
-          <div className="section-header">
-            <div>
-              <h3>{PROJECT_TEMPLATES.find((template) => template.id === selectedTemplateId)?.label} Template Builder</h3>
-              <p className="row-subtitle">Enter the project sizes below and the quote items will be generated automatically.</p>
-            </div>
-            <Button variant="danger" onClick={() => setShowTemplateBuilder(false)}>Close</Button>
-          </div>
-
-          {selectedTemplateId === "bathroom" && (
-            <div className="grid template-grid">
-              <Input type="text" inputMode="decimal" placeholder="Room length" value={getNumericInputValue(templateFormValues.roomLength)} onChange={(e) => updateTemplateField("roomLength", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Room width" value={getNumericInputValue(templateFormValues.roomWidth)} onChange={(e) => updateTemplateField("roomWidth", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Wall height" value={getNumericInputValue(templateFormValues.wallHeight)} onChange={(e) => updateTemplateField("wallHeight", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Vanity count" value={getNumericInputValue(templateFormValues.vanityCount)} onChange={(e) => updateTemplateField("vanityCount", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Toilet count" value={getNumericInputValue(templateFormValues.toiletCount)} onChange={(e) => updateTemplateField("toiletCount", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Shower count" value={getNumericInputValue(templateFormValues.showerCount)} onChange={(e) => updateTemplateField("showerCount", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Bathtub count" value={getNumericInputValue(templateFormValues.bathtubCount)} onChange={(e) => updateTemplateField("bathtubCount", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Door count" value={getNumericInputValue(templateFormValues.doorCount)} onChange={(e) => updateTemplateField("doorCount", e.target.value)} />
-            </div>
-          )}
-
-          {selectedTemplateId === "kitchen" && (
-            <div className="grid template-grid">
-              <Input type="text" inputMode="decimal" placeholder="Room length" value={getNumericInputValue(templateFormValues.roomLength)} onChange={(e) => updateTemplateField("roomLength", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Room width" value={getNumericInputValue(templateFormValues.roomWidth)} onChange={(e) => updateTemplateField("roomWidth", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Wall height" value={getNumericInputValue(templateFormValues.wallHeight)} onChange={(e) => updateTemplateField("wallHeight", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Cabinet length" value={getNumericInputValue(templateFormValues.cabinetLength)} onChange={(e) => updateTemplateField("cabinetLength", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Appliance count" value={getNumericInputValue(templateFormValues.applianceCount)} onChange={(e) => updateTemplateField("applianceCount", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Sink count" value={getNumericInputValue(templateFormValues.sinkCount)} onChange={(e) => updateTemplateField("sinkCount", e.target.value)} />
-              <Input type="text" inputMode="decimal" placeholder="Backsplash area" value={getNumericInputValue(templateFormValues.backsplashArea)} onChange={(e) => updateTemplateField("backsplashArea", e.target.value)} />
-            </div>
-          )}
-
-          <div className="button-row template-actions">
-            <Button onClick={applyTemplateToQuote}>Add Template Items</Button>
-            <Button variant="secondary" onClick={() => setShowTemplateBuilder(false)}>Keep Editing Manually</Button>
-          </div>
-        </Card>
-      )}
-
-      {isCurrentQuoteLocked ? (
-        <Card dark={dark}>
-          <div className="section-header">
-            <div>
-              <h3>Project Items</h3>
-              <p className="row-subtitle">Completed projects are read-only.</p>
-            </div>
-          </div>
-
-          <div className="list-table">
-            {items.filter((item) => item.name?.trim()).map((item, index) => (
-              <div key={`${item.itemId || item.name}-${index}`} className="list-row">
-                <div>
-                  <div className="row-title">{item.name}</div>
-                  <div className="row-subtitle">
-                    {item.roomName || "No room"} • {item.quantity} {item.unit} • {item.category} • Markup {Number(item.markupRate || 0)}%
-                  </div>
-                </div>
-                <div>{formatMoney(getItemTotal(item))}</div>
-              </div>
-            ))}
-          </div>
-
-          {items.filter((item) => item.name?.trim()).length === 0 ? (
-            <p className="row-subtitle">No project items were saved.</p>
-          ) : null}
-        </Card>
-      ) : (
-        <>
-          <QuoteItemsTable
-            dark={dark}
-            items={items}
-            priceList={priceList}
-            projectTemplates={[]}
-            onAddItem={addItem}
-            onAddRoom={addRoom}
-            onOpenTemplateBuilder={openTemplateBuilder}
-            onGenerateSchedule={generateSchedule}
-            onSaveQuote={saveQuote}
-            onExportQuote={openExportModal}
-            onUpdateItem={updateItem}
-            onSelectPriceItem={selectPriceItem}
-            isSavedPriceListItem={isSavedPriceListItem}
-            activeQuoteItemIndex={activeQuoteItemIndex}
-            onSetActiveQuoteItemIndex={setActiveQuoteItemIndex}
-            onSaveToPriceList={saveToPriceList}
-            shouldShowSaveItemButton={shouldShowSaveItemButton}
-            onDismissSaveItemPrompt={dismissSaveItemPrompt}
-            onSaveRoomTemplate={saveRoomTemplate}
-            onRemoveItem={removeItem}
-          />
-
-          <Card dark={dark}>
-            <div className="section-header">
-              <div>
-                <h3>Room Templates</h3>
-                <p className="row-subtitle">Use the built-in templates or any saved room templates below to autofill the current quote.</p>
-              </div>
-            </div>
-
-            <div className="template-button-grid">
-              {savedRoomTemplates.map((template) => (
-                <button
-                  key={template.id}
-                  type="button"
-                  className={`template-button-card${dark ? " dark" : ""}`}
-                  onClick={() => applySavedRoomTemplate(template.id)}
-                >
-                  <span className="template-button-title">{template.name}</span>
-                </button>
-              ))}
-            </div>
-
-            {savedRoomTemplates.length === 0 ? (
-              <p className="row-subtitle room-template-empty-note">Save a room above and it will appear here as a reusable template button.</p>
-            ) : null}
-          </Card>
-        </>
-      )}
-
-      <Card dark={dark}>
-        <h3>Quote Totals</h3>
-        <div className="totals-list">
-          <div><span>Subtotal</span><strong>{formatMoney(totals.subtotal)}</strong></div>
-          <div><span>Markup</span><strong>{formatMoney(totals.markup)}</strong></div>
-          <div><span>Tax</span><strong>{formatMoney(totals.tax)}</strong></div>
-          <div className="grand-total"><span>Total</span><strong>{formatMoney(totals.total)}</strong></div>
-        </div>
-      </Card>
-
-      <Card dark={dark} className="quote-actions-card">
-        <div className="section-header quote-actions-header">
-          <div>
-            <h3>Ready To Save Or Export?</h3>
-            <p className="row-subtitle">
-              {isCurrentQuoteLocked
-                ? "This completed project can be exported, but it cannot be edited."
-                : "Save this quote to keep it in the app, or export it as a file to share with your customer."}
-            </p>
-          </div>
-          <div className="button-row">
-            {!isCurrentQuoteLocked ? (
-              <Button variant="secondary" onClick={saveQuote}>💾 Save Quote</Button>
-            ) : null}
-            {activeQuoteRecord && (activeQuoteRecord.status || "open") === "open" ? (
-              <Button variant="danger" onClick={() => deleteUnapprovedQuote(activeQuoteRecord)}>
-                Delete Quote
-              </Button>
-            ) : null}
-            <Button variant="secondary" onClick={openExportModal}>📤 Export Quote</Button>
-          </div>
-        </div>
-      </Card>
-
-      {showExportModal && (
-        <div className="modal-backdrop" onClick={closeExportModal}>
-          <div
-            className={dark ? "modal-card dark" : "modal-card"}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="section-header modal-header">
-              <div>
-                <h3>Export Quote</h3>
-                <p className="row-subtitle">Choose the file type and name for this quote export.</p>
-              </div>
-              <Button variant="danger" onClick={closeExportModal}>Close</Button>
-            </div>
-
-            <div className="grid export-modal-grid">
-              <label>
-                File Name
-                <Input
-                  placeholder="Enter file name"
-                  value={exportFileName}
-                  onChange={(e) => setExportFileName(e.target.value)}
-                />
-              </label>
-
-              <label>
-                Format
-                <Select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)}>
-                  <option value="pdf">PDF</option>
-                  <option value="excel">Excel</option>
-                </Select>
-              </label>
-            </div>
-
-            <div className="button-row modal-actions">
-              <Button onClick={submitExport}>Create File</Button>
-              <Button variant="secondary" onClick={closeExportModal}>Cancel</Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+    <QuoteBuilderPage
+      dark={dark}
+      isCurrentQuoteLocked={isCurrentQuoteLocked}
+      currentQuoteReference={currentQuoteReference}
+      activeQuoteRecord={activeQuoteRecord}
+      isCurrentQuoteApproved={isCurrentQuoteApproved}
+      savedCustomers={savedCustomers}
+      selectedQuoteCustomerId={selectedQuoteCustomerId}
+      clientName={clientName}
+      projectTitle={projectTitle}
+      projectAddress={projectAddress}
+      quoteDate={quoteDate}
+      taxRate={taxRate}
+      startDate={startDate}
+      showTemplateBuilder={showTemplateBuilder}
+      selectedTemplateId={selectedTemplateId}
+      templateFormValues={templateFormValues}
+      items={items}
+      priceList={priceList}
+      activeQuoteItemIndex={activeQuoteItemIndex}
+      savedRoomTemplates={savedRoomTemplates}
+      totals={totals}
+      showExportModal={showExportModal}
+      exportFileName={exportFileName}
+      exportFormat={exportFormat}
+      openQuotesLanding={openQuotesLanding}
+      openApprovedQuoteSchedule={openApprovedQuoteSchedule}
+      openMaterialTakeoff={openMaterialTakeoff}
+      getCurrentQuoteTakeoffPayload={getCurrentQuoteTakeoffPayload}
+      markQuoteApproved={markQuoteApproved}
+      deleteUnapprovedQuote={deleteUnapprovedQuote}
+      setProjectTitle={setProjectTitle}
+      selectQuoteCustomer={selectQuoteCustomer}
+      setProjectAddress={setProjectAddress}
+      setQuoteDate={setQuoteDate}
+      setTaxRate={setTaxRate}
+      setStartDate={setStartDate}
+      setShowTemplateBuilder={setShowTemplateBuilder}
+      updateTemplateField={updateTemplateField}
+      applyTemplateToQuote={applyTemplateToQuote}
+      addItem={addItem}
+      addRoom={addRoom}
+      openTemplateBuilder={openTemplateBuilder}
+      generateSchedule={generateSchedule}
+      saveQuote={saveQuote}
+      openExportModal={openExportModal}
+      updateItem={updateItem}
+      selectPriceItem={selectPriceItem}
+      isSavedPriceListItem={isSavedPriceListItem}
+      setActiveQuoteItemIndex={setActiveQuoteItemIndex}
+      saveToPriceList={saveToPriceList}
+      shouldShowSaveItemButton={shouldShowSaveItemButton}
+      dismissSaveItemPrompt={dismissSaveItemPrompt}
+      saveRoomTemplate={saveRoomTemplate}
+      removeItem={removeItem}
+      applySavedRoomTemplate={applySavedRoomTemplate}
+      closeExportModal={closeExportModal}
+      setExportFileName={setExportFileName}
+      setExportFormat={setExportFormat}
+      submitExport={submitExport}
+    />
   );
 
   const renderSchedule = () => (
@@ -2407,303 +2057,32 @@ export default function ConstructionQuoteApp() {
     />
   );
 
-  const renderRoomTemplateEditor = () => {
-    if (!roomTemplateDraft) return null;
-
-    return (
-      <div className="room-template-inline-editor">
-        <div className="section-header room-template-inline-header">
-          <div>
-            <h4>Edit Room Template</h4>
-            <p className="row-subtitle">Update the room name and item defaults, then save the template.</p>
-          </div>
-          <div className="button-row">
-            <Button variant="secondary" onClick={saveRoomTemplateEdits}>Save Template</Button>
-            <Button variant="secondary" onClick={closeRoomTemplateEditor}>Done</Button>
-          </div>
-        </div>
-
-        <div className="grid three-col">
-          <label>
-            Template Name
-            <Input
-              placeholder="Template name"
-              value={roomTemplateDraft.name}
-              onChange={(e) => updateRoomTemplateDraft("name", e.target.value)}
-            />
-          </label>
-        </div>
-
-        <div className="room-template-editor">
-          <div className="room-template-editor-header">
-            <div>Item</div>
-            <div>Qty</div>
-            <div>Unit</div>
-            <div>Category</div>
-            <div>Price</div>
-            <div>Markup</div>
-            <div>Days</div>
-            <div>Actions</div>
-          </div>
-
-          {roomTemplateDraft.items.map((item, index) => (
-            <div key={item.itemId || `room-template-item-${index}`} className="room-template-editor-row">
-              <Input
-                placeholder="Item name"
-                value={item.name}
-                onChange={(e) => updateRoomTemplateDraftItem(index, "name", e.target.value)}
-              />
-              <Input
-                type="text"
-                inputMode="decimal"
-                value={getNumericInputValue(item.quantity)}
-                onChange={(e) => updateRoomTemplateDraftItem(index, "quantity", e.target.value)}
-              />
-              <Select
-                value={item.unit}
-                onChange={(e) => updateRoomTemplateDraftItem(index, "unit", e.target.value)}
-              >
-                {UNIT_OPTIONS.map((unitOption) => (
-                  <option key={unitOption.value} value={unitOption.value}>{unitOption.label}</option>
-                ))}
-              </Select>
-              <Select
-                value={item.category}
-                onChange={(e) => updateRoomTemplateDraftItem(index, "category", e.target.value)}
-              >
-                <option value="Labor">Labor</option>
-                <option value="Material">Material</option>
-                <option value="Equipment">Equipment</option>
-              </Select>
-              <Input
-                type="text"
-                inputMode="decimal"
-                placeholder="$0.00"
-                value={getNumericInputValue(item.pricePerUnit, { hideZero: true })}
-                onChange={(e) => updateRoomTemplateDraftItem(index, "pricePerUnit", e.target.value)}
-              />
-              <Input
-                type="text"
-                inputMode="decimal"
-                placeholder="Markup %"
-                value={getNumericInputValue(item.markupRate)}
-                onChange={(e) => updateRoomTemplateDraftItem(index, "markupRate", e.target.value)}
-              />
-              <Input
-                type="text"
-                inputMode="decimal"
-                placeholder="Days"
-                value={getNumericInputValue(item.duration)}
-                onChange={(e) => updateRoomTemplateDraftItem(index, "duration", e.target.value)}
-              />
-              <Button variant="danger" onClick={() => removeRoomTemplateDraftItem(index)}>Delete</Button>
-            </div>
-          ))}
-        </div>
-
-        <div className="button-row template-actions">
-          <Button onClick={addRoomTemplateDraftItem}>Add Template Item</Button>
-          <Button variant="secondary" onClick={saveRoomTemplateEdits}>Save Template</Button>
-        </div>
-      </div>
-    );
-  };
-
   const renderPriceList = () => (
-    <>
-      <Card dark={dark}>
-        <h3>Add Price List Item</h3>
-        <div className="grid price-grid">
-          <label className="price-field-label">
-            Item
-            <Input placeholder="Item name" value={newPriceItem.name} onChange={(e) => setNewPriceItem((previous) => ({ ...previous, name: e.target.value }))} />
-          </label>
-          <label className="price-field-label">
-            Unit
-            <Select value={newPriceItem.unit} onChange={(e) => setNewPriceItem((previous) => ({ ...previous, unit: e.target.value }))}>
-              {UNIT_OPTIONS.map((unitOption) => (
-                <option key={unitOption.value} value={unitOption.value}>{unitOption.label}</option>
-              ))}
-            </Select>
-          </label>
-          <label className="price-field-label">
-            Category
-            <Select value={newPriceItem.category} onChange={(e) => setNewPriceItem((previous) => ({ ...previous, category: e.target.value }))}>
-              <option value="Labor">Labor</option>
-              <option value="Material">Material</option>
-              <option value="Equipment">Equipment</option>
-            </Select>
-          </label>
-          <label className="price-field-label">
-            Price
-            <Input
-              type="text"
-              inputMode="decimal"
-              placeholder="$0.00"
-              value={getNumericInputValue(newPriceItem.pricePerUnit, { hideZero: true })}
-              onChange={(e) => setNewPriceItem((previous) => ({ ...previous, pricePerUnit: sanitizeNumericInput(e.target.value) }))}
-            />
-          </label>
-          <label className="price-field-label">
-            Days
-            <Input
-              type="text"
-              inputMode="decimal"
-              placeholder="Days"
-              value={getNumericInputValue(newPriceItem.duration)}
-              onChange={(e) => setNewPriceItem((previous) => ({ ...previous, duration: sanitizeNumericInput(e.target.value) }))}
-            />
-          </label>
-          <div className="price-action-column">
-            <span>Actions</span>
-            <div className="button-row price-list-edit-actions">
-              <Button onClick={addManualPriceListItem}>Add Item</Button>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      <Card dark={dark}>
-        <h3>Stored Price List</h3>
-        {priceList.length === 0 ? (
-          <p>No items in the price list yet.</p>
-        ) : (
-          <div className="list-table">
-            {priceList.map((item) => {
-              const isEditingPriceItem = editingPriceItemName === item.name;
-
-              return (
-                <div key={item.name} className={`list-row price-list-row${isEditingPriceItem ? " editing" : ""}`}>
-                  {isEditingPriceItem ? (
-                    <div className="price-list-edit-row">
-                      <label className="price-field-label">
-                        Item
-                        <Input
-                          placeholder="Item name"
-                          value={priceItemDraft.name}
-                          onChange={(e) => updatePriceItemDraft("name", e.target.value)}
-                        />
-                      </label>
-                      <label className="price-field-label">
-                        Unit
-                        <Select
-                          value={priceItemDraft.unit}
-                          onChange={(e) => updatePriceItemDraft("unit", e.target.value)}
-                        >
-                          {UNIT_OPTIONS.map((unitOption) => (
-                            <option key={unitOption.value} value={unitOption.value}>{unitOption.label}</option>
-                          ))}
-                        </Select>
-                      </label>
-                      <label className="price-field-label">
-                        Category
-                        <Select
-                          value={priceItemDraft.category}
-                          onChange={(e) => updatePriceItemDraft("category", e.target.value)}
-                        >
-                          <option value="Labor">Labor</option>
-                          <option value="Material">Material</option>
-                          <option value="Equipment">Equipment</option>
-                        </Select>
-                      </label>
-                      <label className="price-field-label">
-                        Price
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="$0.00"
-                          value={getNumericInputValue(priceItemDraft.pricePerUnit, { hideZero: true })}
-                          onChange={(e) => updatePriceItemDraft("pricePerUnit", e.target.value)}
-                        />
-                      </label>
-                      <label className="price-field-label">
-                        Days
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="Days"
-                          value={getNumericInputValue(priceItemDraft.duration)}
-                          onChange={(e) => updatePriceItemDraft("duration", e.target.value)}
-                        />
-                      </label>
-                      <div className="price-action-column price-edit-action-column">
-                        <span>Actions</span>
-                        <div className="button-row price-list-edit-actions">
-                          <Button variant="secondary" onClick={savePriceListItemEdits}>Save</Button>
-                          <Button variant="secondary" onClick={cancelEditingPriceListItem}>Cancel</Button>
-                          <Button variant="danger" onClick={() => deletePriceListItem(item.name)}>Delete</Button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div>
-                        <div className="row-title">{item.name}</div>
-                        <div className="row-subtitle">
-                          {item.category} • {item.duration} day(s) • {UNIT_OPTIONS.find((unitOption) => unitOption.value === item.unit)?.label || item.unit}
-                        </div>
-                      </div>
-                      <div className="price-list-actions">
-                        <span>{formatMoney(item.pricePerUnit)}</span>
-                        <Button variant="secondary" onClick={() => startEditingPriceListItem(item)}>Edit</Button>
-                        <Button variant="danger" onClick={() => deletePriceListItem(item.name)}>Delete</Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
-
-      <Card dark={dark}>
-        <div className="section-header">
-          <div>
-            <h3>Saved Room Templates</h3>
-            <p className="row-subtitle">Save rooms from the quote page, then review and update those templates here.</p>
-          </div>
-        </div>
-
-        {savedRoomTemplates.length === 0 ? (
-          <p>No saved room templates yet.</p>
-        ) : (
-          <div className="list-table">
-            {savedRoomTemplates.map((template) => {
-              const isEditingTemplate = editingRoomTemplateId === template.id && roomTemplateDraft;
-
-              return (
-                <div key={template.id} className={`list-row room-template-list-row${isEditingTemplate ? " editing" : ""}`}>
-                  {isEditingTemplate ? (
-                    renderRoomTemplateEditor()
-                  ) : (
-                    <>
-                      <div>
-                        <div className="directory-title-row">
-                          <div className="row-title">{template.name}</div>
-                          {template.builtIn ? (
-                            <span className="status-pill approved">Preinstalled</span>
-                          ) : null}
-                        </div>
-                        <div className="row-subtitle">
-                          {(template.items || []).length} item(s) • Updated {template.updatedAt || "Recently"}
-                        </div>
-                      </div>
-                      <div className="button-row">
-                        <Button variant="secondary" onClick={() => openRoomTemplateEditor(template.id)}>Edit Template</Button>
-                        {!template.builtIn ? (
-                          <Button variant="danger" onClick={() => deleteRoomTemplate(template.id)}>Delete</Button>
-                        ) : null}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
-    </>
+    <PriceListPage
+      dark={dark}
+      newPriceItem={newPriceItem}
+      setNewPriceItem={setNewPriceItem}
+      addManualPriceListItem={addManualPriceListItem}
+      priceList={priceList}
+      editingPriceItemName={editingPriceItemName}
+      priceItemDraft={priceItemDraft}
+      updatePriceItemDraft={updatePriceItemDraft}
+      savePriceListItemEdits={savePriceListItemEdits}
+      cancelEditingPriceListItem={cancelEditingPriceListItem}
+      deletePriceListItem={deletePriceListItem}
+      startEditingPriceListItem={startEditingPriceListItem}
+      savedRoomTemplates={savedRoomTemplates}
+      editingRoomTemplateId={editingRoomTemplateId}
+      roomTemplateDraft={roomTemplateDraft}
+      openRoomTemplateEditor={openRoomTemplateEditor}
+      closeRoomTemplateEditor={closeRoomTemplateEditor}
+      saveRoomTemplateEdits={saveRoomTemplateEdits}
+      updateRoomTemplateDraft={updateRoomTemplateDraft}
+      updateRoomTemplateDraftItem={updateRoomTemplateDraftItem}
+      removeRoomTemplateDraftItem={removeRoomTemplateDraftItem}
+      addRoomTemplateDraftItem={addRoomTemplateDraftItem}
+      deleteRoomTemplate={deleteRoomTemplate}
+    />
   );
 
   const renderContractor = () => (
@@ -2784,275 +2163,44 @@ export default function ConstructionQuoteApp() {
     }
   };
 
-  const renderServer = () => {
-    const statusLabel = serverStatus.loading
-      ? "Checking"
-      : serverStatus.data?.ok
-        ? "Connected"
-        : serverStatus.error
-          ? "Failed"
-          : "Not Checked";
-    const statusClass = serverStatus.data?.ok ? "active" : serverStatus.error ? "delayed" : "waiting";
-    const storageLabel = storageStatus.loading
-      ? "Loading"
-      : storageStatus.saving
-        ? "Saving"
-        : storageStatus.connected
-          ? "Saving To MongoDB"
-          : "Local Fallback";
-    const storageClass = storageStatus.connected ? "active" : storageStatus.error ? "delayed" : "waiting";
-
-    return (
-      <>
-        <div className="stats-grid">
-          <Card dark={dark}>
-            <div className="stat-label">API Server</div>
-            <div className="stat-value">localhost:3001</div>
-          </Card>
-          <Card dark={dark}>
-            <div className="stat-label">App Data</div>
-            <div className="stat-value">{storageLabel}</div>
-          </Card>
-          <Card dark={dark}>
-            <div className="stat-label">Database</div>
-            <div className="stat-value">{serverStatus.data?.databaseName || "Not loaded"}</div>
-          </Card>
-          <Card dark={dark}>
-            <div className="stat-label">Collections</div>
-            <div className="stat-value">{serverStatus.data?.collections?.length || 0}</div>
-          </Card>
-        </div>
-
-        <div className="two-col-layout">
-          <Card dark={dark}>
-            <div className="section-header">
-              <div>
-                <h3>Server Connection</h3>
-                <p className="row-subtitle">Start the API server so app data loads from and saves to MongoDB through your .env.local settings.</p>
-              </div>
-              <span className={`status-pill ${statusClass}`}>{statusLabel}</span>
-            </div>
-
-            <div className="details-list">
-              <div><strong>API command:</strong> npm run server</div>
-              <div><strong>Frontend command:</strong> npm run dev</div>
-              <div><strong>Status endpoint:</strong> /api/mongodb/status</div>
-              <div><strong>Data endpoint:</strong> /api/app-state</div>
-              <div><strong>Mongo collection:</strong> app_state</div>
-              <div><strong>Required env:</strong> MONGODB_URI</div>
-              <div><strong>Optional env:</strong> MONGODB_DB</div>
-            </div>
-
-            <div className="button-row server-actions">
-              <Button onClick={checkServerMongoConnection} disabled={serverStatus.loading}>
-                {serverStatus.loading ? "Checking..." : "Check MongoDB"}
-              </Button>
-            </div>
-          </Card>
-
-          <Card dark={dark}>
-            <div className="section-header">
-              <div>
-                <h3>MongoDB App Data</h3>
-                <p className="row-subtitle">Quotes, price list, customers, contractors, templates, and settings are saved through the server.</p>
-              </div>
-              <span className={`status-pill ${storageClass}`}>{storageLabel}</span>
-            </div>
-
-            {storageStatus.error ? (
-              <div className="server-error-message">{storageStatus.error}</div>
-            ) : null}
-
-            <div className="details-list">
-              <div><strong>Load status:</strong> {storageStatus.loading ? "Loading from MongoDB" : "Ready"}</div>
-              <div><strong>Save status:</strong> {storageStatus.saving ? "Saving changes" : "Idle"}</div>
-              <div><strong>Last saved:</strong> {storageStatus.lastSavedAt ? new Date(storageStatus.lastSavedAt).toLocaleString() : "Not saved this session"}</div>
-              <div><strong>Fallback cache:</strong> localStorage remains updated for offline recovery.</div>
-            </div>
-          </Card>
-        </div>
-
-        <Card dark={dark}>
-          <div className="section-header">
-            <div>
-              <h3>MongoDB Connection Result</h3>
-              <p className="row-subtitle">The server returns connection metadata only. It does not expose your MongoDB URI.</p>
-            </div>
-          </div>
-
-          {serverStatus.error ? (
-            <div className="server-error-message">{serverStatus.error}</div>
-          ) : null}
-
-          {serverStatus.data ? (
-            <div className="details-list">
-              <div><strong>Connected:</strong> {serverStatus.data.ok ? "Yes" : "No"}</div>
-              <div><strong>Database:</strong> {serverStatus.data.databaseName}</div>
-              <div><strong>Checked:</strong> {new Date(serverStatus.data.checkedAt).toLocaleString()}</div>
-              <div>
-                <strong>Collections:</strong>{" "}
-                {serverStatus.data.collections.length
-                  ? serverStatus.data.collections.join(", ")
-                  : "No collections found"}
-              </div>
-            </div>
-          ) : (
-            <p className="row-subtitle">No server result yet.</p>
-          )}
-        </Card>
-      </>
-    );
-  };
+  const renderServer = () => (
+    <ServerPage
+      dark={dark}
+      serverStatus={serverStatus}
+      storageStatus={storageStatus}
+      onCheckServerMongoConnection={checkServerMongoConnection}
+    />
+  );
 
   const renderSettings = () => (
-    <Card dark={dark}>
-      <h3>Settings</h3>
-      <div className="settings-group">
-        <label>Theme Mode</label>
-        <div className="button-row">
-          <Button variant={themeMode === "light" ? "primary" : "secondary"} onClick={() => setThemeMode("light")}>Light</Button>
-          <Button variant={themeMode === "dark" ? "primary" : "secondary"} onClick={() => setThemeMode("dark")}>Dark</Button>
-          <Button variant={themeMode === "system" ? "primary" : "secondary"} onClick={() => setThemeMode("system")}>System</Button>
-        </div>
-      </div>
-
-      <div className="settings-group">
-        <div className="settings-expiry-row">
-          <div className="settings-row-label">Company Type</div>
-          <div className="settings-expiry-controls">
-            <label className="settings-company-field">
-              Trade list
-              <Select
-                value={companySettings.companyType}
-                onChange={(event) =>
-                  setCompanySettings(getCompanySettings({
-                    ...companySettings,
-                    companyType: event.target.value
-                  }))}
-              >
-                {COMPANY_TYPE_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-              </Select>
-            </label>
-          </div>
-        </div>
-
-        <p className="row-subtitle">
-          This controls which trade options appear when adding or editing contractors.
-        </p>
-      </div>
-
-      <div className="settings-group">
-        <div className="settings-expiry-row">
-          <div className="settings-row-label">Contractor Auto-Expiry</div>
-          <div className="settings-expiry-controls">
-            <label className="settings-toggle">
-              <input
-                type="checkbox"
-                checked={contractorExpirySettings.enabled}
-                onChange={(event) =>
-                  updateContractorExpirySettings((previous) =>
-                    getContractorExpirySettings({
-                      ...previous,
-                      enabled: event.target.checked
-                    })
-                  )}
-              />
-              Enable contractor auto-expiry
-            </label>
-
-            {contractorExpirySettings.enabled ? (
-              <>
-                <label className="settings-expiry-field">
-                  Amount
-                  <Select
-                    value={contractorExpirySettings.amount}
-                    onChange={(event) =>
-                      updateContractorExpirySettings((previous) =>
-                        getContractorExpirySettings({
-                          ...previous,
-                          amount: Number(event.target.value)
-                        })
-                      )}
-                  >
-                    {Array.from({ length: 12 }, (_, index) => index + 1).map((amount) => (
-                      <option key={amount} value={amount}>{amount}</option>
-                    ))}
-                  </Select>
-                </label>
-
-                <label className="settings-expiry-field">
-                  Unit
-                  <Select
-                    value={contractorExpirySettings.unit}
-                    onChange={(event) =>
-                      updateContractorExpirySettings((previous) =>
-                        getContractorExpirySettings({
-                          ...previous,
-                          unit: event.target.value
-                        })
-                      )}
-                  >
-                    <option value="months">Months</option>
-                    <option value="years">Years</option>
-                  </Select>
-                </label>
-              </>
-            ) : null}
-          </div>
-        </div>
-
-        <p className="row-subtitle">
-          Contractors become inactive after the selected time from their last assigned job.
-        </p>
-      </div>
-
-      <div className="settings-group">
-        <label>Storage</label>
-        <div className="button-row">
-          <Button
-            variant="danger"
-            onClick={() => {
-              if (typeof window !== "undefined") {
-                localStorage.removeItem("contractorProfile");
-                localStorage.removeItem("savedContractors");
-                localStorage.removeItem("customerProfile");
-                localStorage.removeItem("savedCustomers");
-                localStorage.removeItem("priceList");
-                localStorage.removeItem("savedRoomTemplates");
-                localStorage.removeItem("savedQuotes");
-                localStorage.removeItem("contractorExpirySettings");
-                localStorage.removeItem("companySettings");
-              }
-              const defaultContractorExpirySettings = { ...DEFAULT_CONTRACTOR_EXPIRY_SETTINGS };
-              setCompanySettings({ ...DEFAULT_COMPANY_SETTINGS });
-              setContractorExpirySettings(defaultContractorExpirySettings);
-              setContractorProfile(normalizeContractorProfile({}, defaultContractorExpirySettings));
-              setSavedContractors([]);
-              setContractorDraft(normalizeContractorProfile({}, defaultContractorExpirySettings));
-              setSelectedContractorId(null);
-              setIsEditingContractor(false);
-              setSavedCustomers([]);
-              setCustomerProfile({ ...EMPTY_CUSTOMER_PROFILE });
-              setCustomerDraft({ ...EMPTY_CUSTOMER_PROFILE });
-              setSelectedCustomerId(null);
-              setIsEditingCustomer(true);
-              setShowCustomerNotes(false);
-              setPriceList([]);
-              setSavedRoomTemplates([]);
-              setEditingRoomTemplateId(null);
-              setRoomTemplateDraft(null);
-              setSavedQuotes([]);
-              setEditingQuoteId(null);
-              setQuotesView("landing");
-            }}
-          >
-            Clear Saved Data
-          </Button>
-        </div>
-      </div>
-    </Card>
+    <SettingsPage
+      dark={dark}
+      themeMode={themeMode}
+      companySettings={companySettings}
+      contractorExpirySettings={contractorExpirySettings}
+      onSetThemeMode={setThemeMode}
+      onSetCompanySettings={setCompanySettings}
+      onUpdateContractorExpirySettings={updateContractorExpirySettings}
+      onSetContractorExpirySettings={setContractorExpirySettings}
+      onSetContractorProfile={setContractorProfile}
+      onSetSavedContractors={setSavedContractors}
+      onSetContractorDraft={setContractorDraft}
+      onSetSelectedContractorId={setSelectedContractorId}
+      onSetIsEditingContractor={setIsEditingContractor}
+      onSetSavedCustomers={setSavedCustomers}
+      onSetCustomerProfile={setCustomerProfile}
+      onSetCustomerDraft={setCustomerDraft}
+      onSetSelectedCustomerId={setSelectedCustomerId}
+      onSetIsEditingCustomer={setIsEditingCustomer}
+      onSetShowCustomerNotes={setShowCustomerNotes}
+      onSetPriceList={setPriceList}
+      onSetSavedRoomTemplates={setSavedRoomTemplates}
+      onSetEditingRoomTemplateId={setEditingRoomTemplateId}
+      onSetRoomTemplateDraft={setRoomTemplateDraft}
+      onSetSavedQuotes={setSavedQuotes}
+      onSetEditingQuoteId={setEditingQuoteId}
+      onSetQuotesView={setQuotesView}
+    />
   );
 
   const MotionDiv = motion.div;
