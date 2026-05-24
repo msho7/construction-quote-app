@@ -1,12 +1,11 @@
-// @ts-nocheck
 import React, { useState } from "react";
 import { PROJECT_TEMPLATES } from "../../constants/appConstants";
 import { formatMoney, getItemBaseTotal, getItemMarkupAmount, toDateInputValue } from "../../utils/appUtils";
 import { Button, Card } from "../ui";
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
-const getNormalizedText = (value) => String(value || "").trim().toLowerCase();
-const getSavedQuoteStatus = (quote = {}) => quote.status || "open";
+const getNormalizedText = (value: any) => String(value || "").trim().toLowerCase();
+const getSavedQuoteStatus = (quote: any = {}) => quote.status || "open";
 
 export default function AnalysisPage({
   dark,
@@ -14,8 +13,8 @@ export default function AnalysisPage({
   onOpenQuotes,
   onOpenSchedule,
   onOpenContractors
-}) {
-  const [activeAnalysisDetail, setActiveAnalysisDetail] = useState(null);
+}: any) {
+  const [activeAnalysisDetail, setActiveAnalysisDetail] = useState<any>(null);
   const today = getTodayDate();
   const completedStatuses = new Set(["completed", "invoiced"]);
   const acceptedStatuses = new Set(["approved", "ongoing", "completed", "invoiced"]);
@@ -24,33 +23,33 @@ export default function AnalysisPage({
   const acceptedProjects = savedQuotes.filter((quote) => acceptedStatuses.has(getSavedQuoteStatus(quote)));
   const futureBookedProjects = acceptedProjects.filter((quote) => toDateInputValue(quote.startDate) > today);
 
-  const getQuoteEstimatedCost = (quote) =>
+  const getQuoteEstimatedCost = (quote: any) =>
     (quote.items || []).reduce((sum, item) => sum + getItemBaseTotal(item), 0);
-  const getQuoteMarkup = (quote) =>
+  const getQuoteMarkup = (quote: any) =>
     Number(quote.totals?.markup || (quote.items || []).reduce((sum, item) => sum + getItemMarkupAmount(item), 0));
-  const getQuoteRevenue = (quote) =>
+  const getQuoteRevenue = (quote: any) =>
     Number(quote.totals?.total || getQuoteEstimatedCost(quote) + getQuoteMarkup(quote));
-  const getQuoteLengthDays = (quote) => {
+  const getQuoteLengthDays = (quote: any) => {
     const scheduledDuration = (quote.schedule || []).reduce((sum, task) => sum + Number(task.duration || 0), 0);
     if (scheduledDuration) return scheduledDuration;
     return (quote.items || []).reduce((sum, item) => sum + Number(item.duration || 0), 0);
   };
-  const getQuoteLatestScheduleEndDate = (quote) =>
+  const getQuoteLatestScheduleEndDate = (quote: any) =>
     (quote.schedule || []).reduce((latestDate, task) => {
       const endDate = toDateInputValue(task.endDate);
       if (!endDate) return latestDate;
       return !latestDate || endDate > latestDate ? endDate : latestDate;
     }, "");
-  const getDaysBetween = (start, end) => {
+  const getDaysBetween = (start: any, end: any) => {
     const startDateValue = toDateInputValue(start);
     const endDateValue = toDateInputValue(end);
     if (!startDateValue || !endDateValue) return 0;
 
     const startDateObject = new Date(`${startDateValue}T00:00:00`);
     const endDateObject = new Date(`${endDateValue}T00:00:00`);
-    return Math.max(0, Math.ceil((endDateObject - startDateObject) / 86400000));
+    return Math.max(0, Math.ceil((endDateObject.getTime() - startDateObject.getTime()) / 86400000));
   };
-  const getProjectType = (quote) => {
+  const getProjectType = (quote: any) => {
     const searchText = [
       quote.projectTitle,
       ...(quote.items || []).flatMap((item) => [item.roomTemplateId, item.roomName, item.name])
@@ -61,7 +60,7 @@ export default function AnalysisPage({
     const roomName = (quote.items || []).find((item) => item.roomName)?.roomName;
     return roomName || "General";
   };
-  const sumByCategory = (quotes, categoryName) =>
+  const sumByCategory = (quotes: any[], categoryName: string) =>
     quotes.reduce((sum, quote) =>
       sum + (quote.items || []).reduce((itemSum, item) => {
         const normalizedCategory = getNormalizedText(item.category);
@@ -98,8 +97,8 @@ export default function AnalysisPage({
     { label: "Labour", value: sumByCategory(savedQuotes, "Labor") },
     { label: "Delivery", value: sumByCategory(savedQuotes, "Delivery") }
   ];
-  const projectTypeRows = Object.values(
-    savedQuotes.reduce((groups, quote) => {
+  const projectTypeRows = (Object.values(
+    savedQuotes.reduce((groups: Record<string, any>, quote) => {
       const type = getProjectType(quote);
       const previous = groups[type] || { type, count: 0, revenue: 0, cost: 0, profit: 0, days: 0 };
       groups[type] = {
@@ -111,30 +110,30 @@ export default function AnalysisPage({
         days: previous.days + getQuoteLengthDays(quote)
       };
       return groups;
-    }, {})
-  ).sort((left, right) => right.profit - left.profit);
+    }, {} as Record<string, any>)
+  ) as any[]).sort((left, right) => right.profit - left.profit);
   const costPerTask = totalScheduleItems ? totalEstimatedCost / totalScheduleItems : 0;
   const squareFootItems = savedQuotes.flatMap((quote) => quote.items || []).filter((item) => item.unit === "sf");
   const squareFootQuantity = squareFootItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const costPerSquareFoot = squareFootQuantity
     ? squareFootItems.reduce((sum, item) => sum + getItemBaseTotal(item), 0) / squareFootQuantity
     : 0;
-  const mostExpensivePhase = Object.entries(
-    savedQuotes.flatMap((quote) => quote.items || []).reduce((groups, item) => {
+  const mostExpensivePhase = (Object.entries(
+    savedQuotes.flatMap((quote) => quote.items || []).reduce((groups: Record<string, number>, item) => {
       const phase = item.roomName || item.name || "Unassigned";
       groups[phase] = (groups[phase] || 0) + getItemBaseTotal(item);
       return groups;
-    }, {})
-  ).sort((left, right) => right[1] - left[1])[0];
+    }, {} as Record<string, number>)
+  ) as [string, number][]).sort((left, right) => right[1] - left[1])[0];
   const revenueForecast = futureBookedProjects.reduce((sum, quote) => sum + getQuoteRevenue(quote), 0);
   const winRate = savedQuotes.length ? (acceptedCount / savedQuotes.length) * 100 : 0;
   const taskCompletionRate = totalScheduleItems ? (completedScheduleItems / totalScheduleItems) * 100 : 0;
   const highRiskProjects = projectsBehindSchedule.filter((quote) => getQuoteMarkup(quote) <= 0);
-  const completedMonths = completedProjects.reduce((groups, quote) => {
+  const completedMonths = completedProjects.reduce((groups: Record<string, number>, quote) => {
     const month = toDateInputValue(getQuoteLatestScheduleEndDate(quote) || quote.quoteDate).slice(0, 7) || "Unscheduled";
     groups[month] = (groups[month] || 0) + 1;
     return groups;
-  }, {});
+  }, {} as Record<string, number>);
   const projectsCompletedPerMonth = Object.keys(completedMonths).length
     ? completedProjects.length / Object.keys(completedMonths).length
     : 0;
@@ -199,7 +198,7 @@ export default function AnalysisPage({
     { label: "Forecast", value: futureBookedProjects.length ? `${futureBookedProjects.length} future project(s) are booked, forecasting ${formatMoney(revenueForecast)} in revenue.` : "No future booked work found from approved quotes with future start dates.", target: "quotes" }
   ];
 
-  const openAnalysisTile = (tile) => {
+  const openAnalysisTile = (tile: any) => {
     setActiveAnalysisDetail(null);
 
     if (tile.target === "schedule") {

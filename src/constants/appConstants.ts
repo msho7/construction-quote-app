@@ -1,4 +1,3 @@
-// @ts-nocheck
 export const UNIT_OPTIONS = [
   { value: "each", label: "Each" },
   { value: "lf", label: "Linear Feet" },

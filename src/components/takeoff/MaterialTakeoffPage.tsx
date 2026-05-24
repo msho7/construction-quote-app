@@ -1,18 +1,17 @@
-// @ts-nocheck
 import { Button, Card } from "../ui";
 import { formatMoney, formatQuoteReferenceNumber, getItemTotal } from "../../utils/appUtils";
 import { inferMaterialTakeoffItems } from "../../utils/materialTakeoffRules";
 
-const getNormalizedText = (value) => String(value || "").trim().toLowerCase();
+const getNormalizedText = (value: any) => String(value || "").trim().toLowerCase();
 
-const getMaterialKey = (item = {}) =>
+const getMaterialKey = (item: any = {}) =>
   [
     getNormalizedText(item.name),
     getNormalizedText(item.unit),
     getNormalizedText(item.category)
   ].join("|");
 
-const getMaterialSource = (item = {}, priceList = []) => {
+const getMaterialSource = (item: any = {}, priceList: any[] = []) => {
   if (item.takeoffSource) return item.takeoffSource;
 
   const itemName = getNormalizedText(item.name);
@@ -22,7 +21,7 @@ const getMaterialSource = (item = {}, priceList = []) => {
   return matchedPriceItem ? "Price list" : "Quote item";
 };
 
-const buildSavedMaterialQuantities = (savedQuote = {}) => {
+const buildSavedMaterialQuantities = (savedQuote: any = {}) => {
   const quantitiesByKey = new Map();
 
   (savedQuote.items || [])
@@ -36,7 +35,7 @@ const buildSavedMaterialQuantities = (savedQuote = {}) => {
   return quantitiesByKey;
 };
 
-const buildTakeoffRows = (quote = {}, priceList = [], savedQuote = null) => {
+const buildTakeoffRows = (quote: any = {}, priceList: any[] = [], savedQuote: any = null) => {
   const rowsByKey = new Map();
   const savedQuantitiesByKey = buildSavedMaterialQuantities(savedQuote || quote);
   const isComparingDraftToSavedQuote = Boolean(savedQuote && quote?.takeoffSource === "Current quote draft");
@@ -106,7 +105,7 @@ export default function MaterialTakeoffPage({
   priceList = [],
   onBack,
   onOpenQuote
-}) {
+}: any) {
   const isDraftTakeoff = quote?.takeoffSource === "Current quote draft";
   const takeoffRows = buildTakeoffRows(quote, priceList, savedQuote);
   const materialTotal = takeoffRows.reduce((sum, row) => sum + Number(row.total || 0), 0);

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Button, Card } from "../ui";
 import { formatMoney, formatQuoteReferenceNumber } from "../../utils/appUtils";
 

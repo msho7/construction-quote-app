@@ -1,13 +1,12 @@
-// @ts-nocheck
 import { toDateInputValue } from "./appUtils";
 import { getProfileAddressDisplay } from "./profileUtils";
 
-export const getQuoteLocation = (quote = {}) =>
+export const getQuoteLocation = (quote: any = {}) =>
   quote.projectAddress ||
   getProfileAddressDisplay(quote.customerProfile) ||
   "No location saved";
 
-export const getQuoteScheduleStatus = (quote = {}, todayDate = "") => {
+export const getQuoteScheduleStatus = (quote: any = {}, todayDate = "") => {
   const scheduleItems = quote.schedule || [];
 
   if (scheduleItems.some((task) => task.completionStatus === "delayed")) {

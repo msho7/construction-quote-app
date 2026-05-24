@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Button, Card, Select } from "../ui";
 import {
   COMPANY_TYPE_OPTIONS,

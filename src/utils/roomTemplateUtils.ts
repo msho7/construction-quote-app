@@ -1,9 +1,8 @@
-// @ts-nocheck
 import { DEFAULT_ITEM_MARKUP_RATE, DEFAULT_TEMPLATE_VALUES, PROJECT_TEMPLATES } from "../constants/appConstants";
 import { createTemplateItems } from "./appUtils";
 import { createItemId, createRoomTemplateId } from "./idUtils";
 
-export const createEmptyRoomTemplateItem = (overrides = {}) => {
+export const createEmptyRoomTemplateItem = (overrides: any = {}) => {
   const markupRate = overrides.markupRate === undefined || overrides.markupRate === null || overrides.markupRate === ""
     ? DEFAULT_ITEM_MARKUP_RATE
     : Number(overrides.markupRate || 0);
@@ -29,7 +28,7 @@ export const createEmptyRoomTemplateItem = (overrides = {}) => {
   };
 };
 
-export const normalizeRoomTemplateItems = (templateItems = []) => {
+export const normalizeRoomTemplateItems = (templateItems: any[] = []) => {
   if (!templateItems.length) return [createEmptyRoomTemplateItem()];
 
   return templateItems.map((item) =>
@@ -43,7 +42,7 @@ export const normalizeRoomTemplateItems = (templateItems = []) => {
   );
 };
 
-export const serializeRoomTemplateItems = (templateItems = []) =>
+export const serializeRoomTemplateItems = (templateItems: any[] = []) =>
   templateItems
     .filter((item) => item.name.trim())
     .map((item) => ({
@@ -74,7 +73,7 @@ export const createBuiltInRoomTemplates = () =>
     )
   }));
 
-export const normalizeRoomTemplateRecord = (template = {}) => {
+export const normalizeRoomTemplateRecord = (template: any = {}) => {
   const builtInTemplate = PROJECT_TEMPLATES.find((entry) => entry.id === template.id);
 
   return {
@@ -86,7 +85,7 @@ export const normalizeRoomTemplateRecord = (template = {}) => {
   };
 };
 
-export const mergeSavedRoomTemplatesWithBuiltIns = (templates = []) => {
+export const mergeSavedRoomTemplatesWithBuiltIns = (templates: any[] = []) => {
   const normalizedTemplates = templates.map(normalizeRoomTemplateRecord);
   const existingTemplateIds = new Set(normalizedTemplates.map((template) => template.id));
   const missingBuiltIns = createBuiltInRoomTemplates().filter(

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Button, Card } from "../ui";
 
 export default function ServerPage({

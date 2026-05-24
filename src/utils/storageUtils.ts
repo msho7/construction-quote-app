@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { normalizeSavedQuoteReferences } from "./appUtils";
 import { hasContractorProfileData, hasCustomerProfileData, normalizeContractorProfile, normalizeCustomerRecord } from "./profileUtils";
 import { normalizeScheduleItems } from "./scheduleUtils";

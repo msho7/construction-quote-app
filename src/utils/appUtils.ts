@@ -1,7 +1,6 @@
-// @ts-nocheck
 export const roundToTwo = (value) => Math.round(Number(value || 0) * 100) / 100;
 
-export const sanitizeNumericInput = (value, options = {}) => {
+export const sanitizeNumericInput = (value, options: any = {}) => {
   const { allowDecimal = true } = options;
   const rawValue = String(value ?? "").replace(/,/g, ".");
 
@@ -21,7 +20,7 @@ export const sanitizeNumericInput = (value, options = {}) => {
   return `${normalizedWholePart}.${decimalParts.join("")}`;
 };
 
-export const getNumericInputValue = (value, options = {}) => {
+export const getNumericInputValue = (value, options: any = {}) => {
   const { hideZero = false } = options;
 
   if (value === null || value === undefined || value === "") {
@@ -151,14 +150,14 @@ export const safeJsonParse = (value, fallback) => {
 
 export const formatMoney = (value) => `$${Number(value || 0).toFixed(2)}`;
 
-export const getQuoteProjectNumberValue = (quote = {}) => {
+export const getQuoteProjectNumberValue = (quote: any = {}) => {
   const projectNumber = Number(quote?.projectNumber || 0);
   return Number.isFinite(projectNumber) && projectNumber > 0
     ? Math.floor(projectNumber)
     : 0;
 };
 
-export const getQuoteInvoicePartValue = (quote = {}) => {
+export const getQuoteInvoicePartValue = (quote: any = {}) => {
   const invoicePartNumber = Number(quote?.invoicePartNumber || 1);
   return Number.isFinite(invoicePartNumber) && invoicePartNumber > 0
     ? Math.floor(invoicePartNumber)
@@ -175,7 +174,7 @@ export const formatProjectReferenceNumber = (projectNumber) => {
   return String(Math.floor(normalizedProjectNumber)).padStart(5, "0");
 };
 
-export const formatQuoteReferenceNumber = (quote = {}) => {
+export const formatQuoteReferenceNumber = (quote: any = {}) => {
   const projectNumber = getQuoteProjectNumberValue(quote);
   const baseNumber = projectNumber ? formatProjectReferenceNumber(projectNumber) : "";
 
@@ -197,13 +196,13 @@ export const formatQuoteReferenceNumber = (quote = {}) => {
   return baseNumber ? `Q${baseNumber}` : "Q";
 };
 
-export const getNextQuoteProjectNumber = (savedQuotes = []) =>
+export const getNextQuoteProjectNumber = (savedQuotes: any[] = []) =>
   savedQuotes.reduce(
     (highestNumber, quote) => Math.max(highestNumber, getQuoteProjectNumberValue(quote)),
     0
   ) + 1;
 
-export const normalizeSavedQuoteReferences = (savedQuotes = []) => {
+export const normalizeSavedQuoteReferences = (savedQuotes: any[] = []) => {
   const normalizedQuotes = savedQuotes.map((quote) => ({
     ...quote,
     status: quote?.status || "open",

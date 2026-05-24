@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { UNIT_OPTIONS } from "../../constants/appConstants";
 import { formatMoney, getNumericInputValue, sanitizeNumericInput } from "../../utils/appUtils";
 import { Button, Card, Input, Select } from "../ui";

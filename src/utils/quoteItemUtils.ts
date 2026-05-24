@@ -1,8 +1,7 @@
-// @ts-nocheck
 import { DEFAULT_ITEM_MARKUP_RATE, EMPTY_ITEM } from "../constants/appConstants";
 import { createItemId, createRoomId } from "./idUtils";
 
-export const createEmptyQuoteItem = (overrides = {}) => {
+export const createEmptyQuoteItem = (overrides: any = {}) => {
   const roomId = overrides.roomId || createRoomId();
   const itemId = overrides.itemId || createItemId();
   const markupRate = overrides.markupRate === undefined || overrides.markupRate === null || overrides.markupRate === ""

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { DEFAULT_ITEM_MARKUP_RATE } from "../constants/appConstants";
 import { getNextBusinessDate, getScheduleEndDate, toDateInputValue } from "./appUtils";
 import { getTodayDate } from "./dateUtils";
@@ -19,9 +18,9 @@ export const TASK_TRADE_MATCHERS = [
   { trade: "Delivery", keywords: ["delivery", "deliver", "pickup", "dump", "bin"] },
   { trade: "General Labour", keywords: ["labour", "labor", "clean", "cleanup", "prep", "general"] }
 ];
-export const getTaskSearchText = (task = {}) =>
+export const getTaskSearchText = (task: any = {}) =>
   [task.name, task.category, task.roomName, task.unit].map((value) => String(value || "").toLowerCase()).join(" ");
-export const getSuggestedTradeForTask = (task = {}) => {
+export const getSuggestedTradeForTask = (task: any = {}) => {
   const taskText = getTaskSearchText(task);
   const match = TASK_TRADE_MATCHERS.find(({ keywords }) =>
     keywords.some((keyword) => taskText.includes(keyword))
@@ -29,18 +28,18 @@ export const getSuggestedTradeForTask = (task = {}) => {
 
   return match?.trade || String(task.category || "").trim() || "";
 };
-export const getContractorTradeList = (contractor = {}) =>
+export const getContractorTradeList = (contractor: any = {}) =>
   String(contractor.trade || "")
     .split(/[,/|&]+|\band\b/i)
     .map((trade) => trade.trim())
     .filter(Boolean);
-export const getContractorTradeSearchText = (contractor = {}) =>
+export const getContractorTradeSearchText = (contractor: any = {}) =>
   [
     ...getContractorTradeList(contractor),
     contractor.companyName,
     contractor.contactName
   ].map((value) => String(value || "").toLowerCase()).join(" ");
-export const canContractorDoTrade = (contractor = {}, suggestedTrade = "") => {
+export const canContractorDoTrade = (contractor: any = {}, suggestedTrade = "") => {
   const suggestedTradeText = String(suggestedTrade || "").toLowerCase();
   if (!suggestedTradeText || contractor.status === "inactive") return false;
 
@@ -53,7 +52,7 @@ export const canContractorDoTrade = (contractor = {}, suggestedTrade = "") => {
     )
   );
 };
-export const getTaskAssignmentRange = (task = {}) => {
+export const getTaskAssignmentRange = (task: any = {}) => {
   const startDate = toDateInputValue(task.startDate);
   if (!startDate) return null;
 
@@ -82,7 +81,7 @@ export const addContractorBooking = (contractorId, taskRange, contractorBookings
     taskRange
   ]);
 };
-export const assignContractorsToSchedule = (scheduleItems = [], contractors = []) => {
+export const assignContractorsToSchedule = (scheduleItems = [], contractors: any[] = []) => {
   const activeContractors = contractors.filter((contractor) => contractor.status !== "inactive");
   const assignmentCounts = new Map();
   const contractorBookings = new Map();
@@ -92,7 +91,7 @@ export const assignContractorsToSchedule = (scheduleItems = [], contractors = []
     const taskRange = getTaskAssignmentRange(task);
     const existingAssignedContractor = activeContractors.find((contractor) => contractor.id && contractor.id === task.assignedContractorId);
     const matchingContractors = activeContractors.filter((contractor) => canContractorDoTrade(contractor, suggestedTrade));
-    const getSortedContractors = (contractorOptions = []) =>
+    const getSortedContractors = (contractorOptions: any[] = []) =>
       contractorOptions
         .slice()
         .sort((contractorA, contractorB) => {
@@ -146,7 +145,7 @@ export const assignContractorsToSchedule = (scheduleItems = [], contractors = []
     };
   });
 };
-export const getScheduleTaskWithContractor = (task = {}, contractor = null) => {
+export const getScheduleTaskWithContractor = (task: any = {}, contractor: any = null) => {
   const suggestedTrade = task.suggestedTrade || getSuggestedTradeForTask(task);
 
   if (!contractor) {
@@ -168,7 +167,7 @@ export const getScheduleTaskWithContractor = (task = {}, contractor = null) => {
   };
 };
 
-export const buildScheduleFromItems = (quoteItems = [], scheduleStartDate = "") => {
+export const buildScheduleFromItems = (quoteItems: any[] = [], scheduleStartDate = "") => {
   const normalizedStartDate = getNextBusinessDate(scheduleStartDate);
   if (!normalizedStartDate) return [];
 
@@ -191,7 +190,7 @@ export const buildScheduleFromItems = (quoteItems = [], scheduleStartDate = "") 
     });
 };
 
-export const normalizeScheduleItems = (scheduleItems = []) =>
+export const normalizeScheduleItems = (scheduleItems: any[] = []) =>
   scheduleItems.map((item) => {
     const duration = Math.max(1, Number(item.duration || 1));
     const startDate = getNextBusinessDate(item.startDate);
@@ -205,7 +204,7 @@ export const normalizeScheduleItems = (scheduleItems = []) =>
     };
   });
 
-export const getScheduleTaskCompletionStatus = (task = {}, completedAt = getTodayDate()) => {
+export const getScheduleTaskCompletionStatus = (task: any = {}, completedAt = getTodayDate()) => {
   const completedDate = toDateInputValue(completedAt);
   const scheduledEndDate = toDateInputValue(task.endDate);
 
@@ -214,7 +213,7 @@ export const getScheduleTaskCompletionStatus = (task = {}, completedAt = getToda
   return "on-time";
 };
 
-export const markScheduleTaskCompletedInCollection = (scheduleItems = [], taskIndex) =>
+export const markScheduleTaskCompletedInCollection = (scheduleItems: any[] = [], taskIndex) =>
   normalizeScheduleItems(
     scheduleItems.map((task, index) => {
       if (index !== taskIndex) return task;
@@ -230,7 +229,7 @@ export const markScheduleTaskCompletedInCollection = (scheduleItems = [], taskIn
     })
   );
 
-export const markScheduleTaskInProgressInCollection = (scheduleItems = [], taskIndex) =>
+export const markScheduleTaskInProgressInCollection = (scheduleItems: any[] = [], taskIndex) =>
   normalizeScheduleItems(
     scheduleItems.map((task, index) =>
       index !== taskIndex
@@ -244,7 +243,7 @@ export const markScheduleTaskInProgressInCollection = (scheduleItems = [], taskI
     )
   );
 
-export const getScheduleTaskIdentity = (task = {}) =>
+export const getScheduleTaskIdentity = (task: any = {}) =>
   task.itemId ||
   [
     task.name,
@@ -253,10 +252,10 @@ export const getScheduleTaskIdentity = (task = {}) =>
     task.unit
   ].map((value) => String(value || "").trim().toLowerCase()).join("|");
 
-export const preserveScheduleCompletionState = (nextSchedule = [], previousSchedule = []) => {
-  const completionByTask = new Map(
+export const preserveScheduleCompletionState = (nextSchedule: any[] = [], previousSchedule: any[] = []) => {
+  const completionByTask = new Map<string, any>(
     previousSchedule
-      .map((task) => [getScheduleTaskIdentity(task), task])
+      .map((task): [string, any] => [getScheduleTaskIdentity(task), task])
       .filter(([taskKey]) => taskKey)
   );
 
@@ -276,7 +275,7 @@ export const preserveScheduleCompletionState = (nextSchedule = [], previousSched
   );
 };
 
-export const resequenceScheduleItems = (scheduleItems = [], scheduleStartDate = "") => {
+export const resequenceScheduleItems = (scheduleItems: any[] = [], scheduleStartDate = "") => {
   const normalizedSchedule = normalizeScheduleItems(scheduleItems);
   const normalizedStartDate = getNextBusinessDate(scheduleStartDate) || normalizedSchedule[0]?.startDate || "";
 
@@ -301,7 +300,7 @@ export const resequenceScheduleItems = (scheduleItems = [], scheduleStartDate = 
   });
 };
 
-export const reorderCollectionBeforeIndex = (items = [], fromIndex, toIndex) => {
+export const reorderCollectionBeforeIndex = (items: any[] = [], fromIndex, toIndex) => {
   if (
     fromIndex === toIndex ||
     fromIndex < 0 ||
@@ -325,7 +324,7 @@ export const reorderCollectionBeforeIndex = (items = [], fromIndex, toIndex) => 
   return nextItems;
 };
 
-export const syncQuoteItemsToSchedule = (quoteItems = [], scheduleItems = []) => {
+export const syncQuoteItemsToSchedule = (quoteItems: any[] = [], scheduleItems: any[] = []) => {
   const itemMap = new Map(
     quoteItems
       .filter((item) => item.itemId)
@@ -362,4 +361,3 @@ export const syncQuoteItemsToSchedule = (quoteItems = [], scheduleItems = []) =>
 
   return [...orderedScheduledItems, ...remainingItems];
 };
-

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React from "react";
 import { Card, Button, Input, Select } from "../ui";
 
@@ -169,12 +168,12 @@ const CONTRACTOR_TRADE_PROFILES = [
   }
 ];
 
-const getContractorDisplayName = (profile = {}) =>
+const getContractorDisplayName = (profile: any = {}) =>
   String(profile?.companyName || "").trim() ||
   String(profile?.contactName || "").trim() ||
   "Contractor";
 
-const getProfileAddressDisplay = (profile = {}) => {
+const getProfileAddressDisplay = (profile: any = {}) => {
   const unitNumber = String(profile?.unitNumber || "").trim();
   const streetAddress = String(profile?.address || "").trim();
   const city = String(profile?.city || "").trim();
@@ -189,7 +188,7 @@ const getProfileAddressDisplay = (profile = {}) => {
   ].filter(Boolean).join(", ");
 };
 
-const getContractorExpiryLabel = (settings = {}) => {
+const getContractorExpiryLabel = (settings: any = {}) => {
   const amount = Number(settings.amount || 0);
   const unit = settings.unit === "years" ? "years" : "months";
   const unitLabel = amount === 1 ? unit.replace(/s$/, "") : unit;
@@ -207,7 +206,7 @@ const addMonthsToDateInput = (value, months) => {
   return nextDate.toISOString().slice(0, 10);
 };
 
-const getContractorInactiveAfterDate = (profile = {}, settings = {}) => {
+const getContractorInactiveAfterDate = (profile: any = {}, settings: any = {}) => {
   if (!settings.enabled) return "";
 
   const months = settings.unit === "years"
@@ -223,7 +222,7 @@ const getRateTypeLabel = (rateType = "hour") => {
   return "Hour";
 };
 
-const getContractorRateDisplay = (contractor = {}) => {
+const getContractorRateDisplay = (contractor: any = {}) => {
   const rate = String(contractor.rate || "").trim();
   if (!rate) return "Not set";
 
@@ -236,7 +235,7 @@ const parseTradeList = (value = "") =>
     .map((trade) => trade.trim())
     .filter(Boolean);
 
-const getMergedTradeList = (currentTrades = "", nextTrades = []) => {
+const getMergedTradeList = (currentTrades = "", nextTrades: any[] = []) => {
   const tradeMap = new Map();
 
   [...parseTradeList(currentTrades), ...nextTrades].forEach((trade) => {
@@ -283,7 +282,7 @@ export default function ContractorPage({
     const hasTrade = currentTrades.some((currentTrade) => currentTrade.toLowerCase() === trade.toLowerCase());
     updateTrades(hasTrade ? currentTrades.filter((currentTrade) => currentTrade.toLowerCase() !== trade.toLowerCase()) : [...currentTrades, trade]);
   };
-  const renderTradeChecklist = (title, trades = []) => (
+  const renderTradeChecklist = (title, trades: any[] = []) => (
     <div className="contractor-trade-group">
       <div className="contractor-trade-group-title">{title}</div>
       <div className="contractor-trade-list">

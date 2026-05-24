@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { safeJsonParse, toDateInputValue } from "./appUtils";
 import { getTodayDate } from "./dateUtils";
 import { createContractorId, createCustomerId } from "./idUtils";
@@ -90,7 +89,7 @@ export const CUSTOMER_PROFILE_FIELDS = [
   "postalCode",
   "notes"
 ];
-export const getContractorExpirySettings = (settings = {}) => {
+export const getContractorExpirySettings = (settings: any = {}) => {
   const amount = Number(settings.amount ?? DEFAULT_CONTRACTOR_EXPIRY_SETTINGS.amount);
 
   return {
@@ -101,12 +100,12 @@ export const getContractorExpirySettings = (settings = {}) => {
     unit: settings.unit === "years" ? "years" : "months"
   };
 };
-export const getCompanySettings = (settings = {}) => ({
+export const getCompanySettings = (settings: any = {}) => ({
   companyType: COMPANY_TYPE_OPTIONS.some((option) => option.id === settings.companyType)
     ? settings.companyType
     : DEFAULT_COMPANY_SETTINGS.companyType
 });
-export const getContractorExpiryMonths = (settings = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
+export const getContractorExpiryMonths = (settings: any = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
   const expirySettings = getContractorExpirySettings(settings);
   return expirySettings.unit === "years"
     ? expirySettings.amount * 12
@@ -121,13 +120,13 @@ export const addMonthsToDateInput = (value, months) => {
 
   return nextDate.toISOString().slice(0, 10);
 };
-export const getContractorInactiveAfterDate = (profile = {}, settings = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
+export const getContractorInactiveAfterDate = (profile: any = {}, settings: any = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
   const expirySettings = getContractorExpirySettings(settings);
   if (!expirySettings.enabled) return "";
 
   return addMonthsToDateInput(profile.lastAssignedJobDate, getContractorExpiryMonths(expirySettings));
 };
-export const getContractorActivityStatus = (profile = {}, settings = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
+export const getContractorActivityStatus = (profile: any = {}, settings: any = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
   const expirySettings = getContractorExpirySettings(settings);
   if (!expirySettings.enabled) return "active";
 
@@ -141,14 +140,14 @@ export const getContractorActivityStatus = (profile = {}, settings = DEFAULT_CON
     ? "inactive"
     : "active";
 };
-export const normalizeCustomerRecord = (profile = {}) => ({
+export const normalizeCustomerRecord = (profile: any = {}) => ({
   id: profile.id || "",
   createdAt: profile.createdAt || "",
   updatedAt: profile.updatedAt || "",
   ...EMPTY_CUSTOMER_PROFILE,
   ...profile
 });
-export const normalizeContractorProfile = (profile = {}, settings = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
+export const normalizeContractorProfile = (profile: any = {}, settings: any = DEFAULT_CONTRACTOR_EXPIRY_SETTINGS) => {
   const normalizedProfile = {
     id: profile.id || "",
     createdAt: profile.createdAt || "",
@@ -171,13 +170,13 @@ export const getCustomerDisplayName = (profile = EMPTY_CUSTOMER_PROFILE) =>
   String(profile?.customerName || "").trim() ||
   String(profile?.companyName || "").trim() ||
   "Customer";
-export const isProjectLocked = (quote = {}) => ["completed", "invoiced"].includes(quote?.status);
+export const isProjectLocked = (quote: any = {}) => ["completed", "invoiced"].includes(quote?.status);
 export const getContractorDisplayName = (profile = EMPTY_CONTRACTOR_PROFILE) =>
   String(profile?.companyName || "").trim() ||
   String(profile?.contactName || "").trim() ||
   "Contractor";
 
-export const getProfileAddressDisplay = (profile = {}) => {
+export const getProfileAddressDisplay = (profile: any = {}) => {
   const unitNumber = String(profile?.unitNumber || "").trim();
   const streetAddress = String(profile?.address || "").trim();
   const city = String(profile?.city || "").trim();
@@ -203,7 +202,7 @@ export const getLegacyContractorProfile = () => {
 
   return normalizeContractorProfile(safeJsonParse(localStorage.getItem("contractorProfile"), EMPTY_CONTRACTOR_PROFILE));
 };
-export const createSavedContractorRecord = (profile = {}) => {
+export const createSavedContractorRecord = (profile: any = {}) => {
   const timestamp = new Date().toISOString();
 
   return normalizeContractorProfile({
@@ -241,7 +240,7 @@ export const getInitialContractorProfile = () => {
   const savedContractors = getInitialSavedContractors();
   return savedContractors[0] ? normalizeContractorProfile(savedContractors[0]) : normalizeContractorProfile();
 };
-export const createSavedCustomerRecord = (profile = {}) => {
+export const createSavedCustomerRecord = (profile: any = {}) => {
   const timestamp = new Date().toISOString();
 
   return normalizeCustomerRecord({
@@ -279,4 +278,3 @@ export const getInitialCustomerProfile = () => {
   const savedCustomers = getInitialSavedCustomers();
   return savedCustomers[0] ? normalizeCustomerRecord(savedCustomers[0]) : normalizeCustomerRecord();
 };
-

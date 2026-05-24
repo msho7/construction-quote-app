@@ -1,4 +1,3 @@
-// @ts-nocheck
 export const APP_STYLES = `
   * { box-sizing: border-box; }
   html {
@@ -136,6 +135,50 @@ export const APP_STYLES = `
     border-color: #4b5563;
     background: #0f172a;
     color: #e5e7eb;
+  }
+  .sidebar-home-button {
+    width: calc(100% - 24px);
+    margin: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-size: 0.95rem;
+    text-align: left;
+  }
+  .sidebar-home-button:hover {
+    background: rgba(37, 99, 235, 0.08);
+  }
+  .sidebar-home-button.active {
+    background: #2563eb;
+    color: white;
+  }
+  .sidebar-home-icon {
+    flex: 0 0 auto;
+    width: 18px;
+    text-align: center;
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .app-shell.navigation-closed .sidebar-home-button {
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+  }
+  .app-shell.navigation-closed .sidebar-home-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 
   .nav-list { display: flex; flex-direction: column; gap: 4px; padding: 0 12px; }

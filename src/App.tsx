@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useDarkMode } from "./hooks/useDarkMode";
 import {
@@ -256,13 +255,13 @@ export default function ConstructionQuoteApp() {
         : item
     );
 
-  const getSaveItemDismissalKey = (item, nameOverride) => {
+  const getSaveItemDismissalKey = (item: any, nameOverride?: string) => {
     const normalizedName = getNormalizedItemName(nameOverride ?? item?.name);
     if (!item?.itemId || !normalizedName) return "";
     return `${item.itemId}:${normalizedName}`;
   };
 
-  const dismissSaveItemPrompt = (item, nameOverride) => {
+  const dismissSaveItemPrompt = (item: any, nameOverride?: string) => {
     const key = getSaveItemDismissalKey(item, nameOverride);
     if (!key) return;
 
@@ -550,12 +549,12 @@ export default function ConstructionQuoteApp() {
     showNotification(existingContractor ? "Contractor updated successfully." : "Contractor saved successfully.");
   };
 
-  const getContractorAssignmentDate = (quote = {}) =>
+  const getContractorAssignmentDate = (quote: any = {}) =>
     toDateInputValue(quote.startDate) ||
     toDateInputValue(quote.quoteDate) ||
     getTodayDate();
 
-  const updateContractorJobAssignment = (contractorLike = {}, assignmentDate = getTodayDate()) => {
+  const updateContractorJobAssignment = (contractorLike: any = {}, assignmentDate = getTodayDate()) => {
     const contractorId = contractorLike?.id;
     if (!contractorId) return;
 
@@ -1116,7 +1115,7 @@ export default function ConstructionQuoteApp() {
     }
   };
 
-  const openQuotesLanding = (options = {}) => {
+  const openQuotesLanding = (options: any = {}) => {
     setQuotesCustomerFilter(options.customerFilter || null);
     setQuotesInitialProjectList(options.projectList || "");
     setQuotesView("landing");
@@ -1593,7 +1592,7 @@ export default function ConstructionQuoteApp() {
     openCurrentDraftSchedule();
   };
 
-  const saveQuote = (options = {}) => {
+  const saveQuote = (options: any = {}) => {
     const existingQuote = editingQuoteId
       ? savedQuotes.find((savedQuote) => savedQuote.id === editingQuoteId)
       : null;
@@ -1660,7 +1659,7 @@ export default function ConstructionQuoteApp() {
     saveQuote({ status: "approved" });
   };
 
-  const loadQuote = (quote, options = {}) => {
+  const loadQuote = (quote: any, options: any = {}) => {
     const matchedSavedCustomer = savedCustomers.find((customer) => {
       if (quote.customerId && customer.id === quote.customerId) return true;
       if (quote.customerProfile?.id && customer.id === quote.customerProfile.id) return true;

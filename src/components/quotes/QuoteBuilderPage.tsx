@@ -1,6 +1,6 @@
-// @ts-nocheck
 import { DEFAULT_TEMPLATE_VALUES, PROJECT_TEMPLATES } from "../../constants/appConstants";
 import { formatMoney, getItemTotal, getNumericInputValue, sanitizeNumericInput } from "../../utils/appUtils";
+import { getCustomerDisplayName } from "../../utils/profileUtils";
 import { Button, Card, Input, Select } from "../ui";
 import QuoteItemsTable from "./QuoteItemsTable";
 
@@ -64,7 +64,7 @@ export default function QuoteBuilderPage({
   setExportFileName,
   setExportFormat,
   submitExport
-}) {
+}: any) {
   return (
     <>
       <Card dark={dark}>

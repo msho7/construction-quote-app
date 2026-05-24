@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React from "react";
 import { Card, Button, Input } from "../ui";
 import { formatMoney, formatQuoteReferenceNumber } from "../../utils/appUtils";
@@ -17,14 +16,14 @@ const CUSTOMER_PROFILE_FIELDS = [
 ];
 
 const getNormalizedText = (value) => String(value || "").trim().toLowerCase();
-const getCustomerDisplayName = (profile = {}) =>
+const getCustomerDisplayName = (profile: any = {}) =>
   String(profile?.customerName || "").trim() ||
   String(profile?.companyName || "").trim() ||
   "Customer";
-const hasCustomerProfileData = (profile = {}) =>
+const hasCustomerProfileData = (profile: any = {}) =>
   CUSTOMER_PROFILE_FIELDS.some((field) => String(profile?.[field] || "").trim());
-const getSavedQuoteStatus = (quote = {}) => quote.status || "open";
-const isQuoteApprovedOrLater = (quote = {}) =>
+const getSavedQuoteStatus = (quote: any = {}) => quote.status || "open";
+const isQuoteApprovedOrLater = (quote: any = {}) =>
   ["approved", "ongoing", "completed", "invoiced"].includes(getSavedQuoteStatus(quote));
 
 export default function CustomerPage({

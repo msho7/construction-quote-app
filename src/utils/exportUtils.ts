@@ -1,7 +1,6 @@
-// @ts-nocheck
 import { formatMoney, formatQuoteReferenceNumber, getItemTotal } from "./appUtils";
 
-const escapeHtml = (value) =>
+const escapeHtml = (value: any) =>
   String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -9,7 +8,7 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const escapeXml = (value) =>
+const escapeXml = (value: any) =>
   String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -17,7 +16,7 @@ const escapeXml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
 
-const createFilename = (projectTitle, extension) => {
+const createFilename = (projectTitle: any, extension: string) => {
   const baseName = (projectTitle || "construction-quote")
     .trim()
     .toLowerCase()
@@ -27,7 +26,7 @@ const createFilename = (projectTitle, extension) => {
   return `${baseName || "construction-quote"}.${extension}`;
 };
 
-const downloadBlob = (blob, filename) => {
+const downloadBlob = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -38,10 +37,10 @@ const downloadBlob = (blob, filename) => {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 
-const toCurrencyNumber = (value) => Number(Number(value || 0).toFixed(2));
+const toCurrencyNumber = (value: any) => Number(Number(value || 0).toFixed(2));
 
-const combineParts = (parts) => parts.filter(Boolean).join(" • ");
-const getProfileAddressDisplay = (profile = {}) => {
+const combineParts = (parts: any[]) => parts.filter(Boolean).join(" • ");
+const getProfileAddressDisplay = (profile: any = {}) => {
   const unitNumber = String(profile?.unitNumber || "").trim();
   const streetAddress = String(profile?.address || "").trim();
   const city = String(profile?.city || "").trim();
@@ -54,7 +53,7 @@ const getProfileAddressDisplay = (profile = {}) => {
   return [addressLine, localityLine].filter(Boolean).join(", ");
 };
 
-const getEffectiveUnitPrice = (item) => {
+const getEffectiveUnitPrice = (item: any) => {
   const quantity = Number(item.quantity || 0);
   const total = getItemTotal(item);
 
@@ -65,12 +64,12 @@ const getEffectiveUnitPrice = (item) => {
   return total / quantity;
 };
 
-const getItemDescription = (item) => {
+const getItemDescription = (item: any) => {
   return item.name;
 };
 
-const getQuoteDisplayRows = (quoteItems) => {
-  const rows = [];
+const getQuoteDisplayRows = (quoteItems: any[]) => {
+  const rows: any[] = [];
   let previousRoomKey = null;
 
   quoteItems.forEach((item, index) => {
@@ -95,9 +94,9 @@ const getQuoteDisplayRows = (quoteItems) => {
   return rows;
 };
 
-const getQuoteTerms = (quote) => `Tax Rate: ${quote.taxRate}%`;
+const getQuoteTerms = (quote: any) => `Tax Rate: ${quote.taxRate}%`;
 
-const getQuoteExportModel = (quote) => {
+const getQuoteExportModel = (quote: any) => {
   const contractor = quote.contractorProfile || {};
   const customer = quote.customerProfile || {};
   const quoteItems = quote.items.filter((item) => item.name?.trim());
@@ -141,9 +140,9 @@ const createExcelCell = ({
   value = "",
   type = "String",
   styleId = "Default",
-  index,
+  index = null,
   mergeAcross = 0
-}) => {
+}: any) => {
   const indexAttribute = index ? ` ss:Index="${index}"` : "";
   const mergeAttribute = mergeAcross ? ` ss:MergeAcross="${mergeAcross}"` : "";
 
@@ -154,12 +153,12 @@ const createExcelCell = ({
   return `<Cell${indexAttribute}${mergeAttribute} ss:StyleID="${styleId}"><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`;
 };
 
-const createExcelRow = (cells, height) => {
+const createExcelRow = (cells: string[], height?: number) => {
   const heightAttribute = height ? ` ss:AutoFitHeight="0" ss:Height="${height}"` : "";
   return `<Row${heightAttribute}>${cells.join("")}</Row>`;
 };
 
-const buildExcelWorkbook = (quote) => {
+const buildExcelWorkbook = (quote: any) => {
   const {
     contractor,
     customer,

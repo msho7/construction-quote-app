@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { motion } from "framer-motion";
 import { PAGE_OPTIONS } from "../../constants/appConstants";
 import { APP_STYLES } from "../../styles";
@@ -15,6 +14,8 @@ export default function AppShell({
   onDismissNotification,
   children
 }) {
+  const isHomeActive = currentPage === "dashboard";
+
   return (
     <>
       <style>{APP_STYLES}</style>
@@ -26,6 +27,17 @@ export default function AppShell({
         ].filter(Boolean).join(" ")}
       >
         <aside className="sidebar">
+          <button
+            className={`sidebar-home-button ${isHomeActive ? "active" : ""}`}
+            type="button"
+            onClick={() => openNavigationPage("dashboard")}
+            aria-label="Home"
+            aria-current={isHomeActive ? "page" : undefined}
+          >
+            <span className="sidebar-home-icon" aria-hidden="true">⌂</span>
+            <span className="sidebar-home-label">Home</span>
+          </button>
+
           <div className="sidebar-header">
             {navigationOpen ? (
               <div>
@@ -46,7 +58,7 @@ export default function AppShell({
 
           {navigationOpen ? (
             <nav className="nav-list">
-              {PAGE_OPTIONS.map((page) => (
+              {PAGE_OPTIONS.filter((page) => page.id !== "dashboard").map((page) => (
                 <button
                   key={page.id}
                   className={`nav-item ${currentPage === page.id ? "active" : ""}`}
