@@ -1954,10 +1954,24 @@ export const APP_STYLES = `
   .sidebar-brand-mark {
     width: 42px;
     height: 42px;
+    border: 0;
     border-radius: 8px;
     background: #f8fafc;
     color: #0f172a;
     box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+    cursor: pointer;
+    transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  }
+
+  .sidebar-brand-mark:hover {
+    background: #ffffff;
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12), 0 8px 20px rgba(15, 23, 42, 0.14);
+    transform: translateY(-1px);
+  }
+
+  .sidebar-brand-mark:focus-visible {
+    outline: 2px solid rgba(59, 130, 246, 0.9);
+    outline-offset: 3px;
   }
 
   .sidebar-brand-copy {

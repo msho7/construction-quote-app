@@ -92,9 +92,15 @@ export default function AppShell({
         <aside className="sidebar">
           <div className="sidebar-header">
             <div className="sidebar-brand" aria-label="Construction Quote App">
-              <span className="sidebar-brand-mark" aria-hidden="true">
+              <button
+                className="sidebar-brand-mark"
+                type="button"
+                onClick={() => openNavigationPage("dashboard")}
+                aria-label="Go to dashboard"
+                title="Dashboard"
+              >
                 <HardHat size={20} strokeWidth={2.4} />
-              </span>
+              </button>
               {navigationOpen ? (
                 <span className="sidebar-brand-copy">
                   <span className="sidebar-title">BuildQuote</span>
