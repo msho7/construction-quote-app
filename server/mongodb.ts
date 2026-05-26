@@ -7,7 +7,7 @@ let clientPromise;
 
 export const getMongoClient = () => {
   if (!uri) {
-    throw new Error("Missing MONGODB_URI. Add it to .env.local before starting the server.");
+    throw new Error("Missing MONGODB_URI. Copy .env.example to .env.local, then add your MongoDB connection string.");
   }
 
   if (!clientPromise) {

@@ -12,14 +12,29 @@ npm run lint
 
 ## MongoDB
 
-Create `.env.local` from `.env.example`, then set your private MongoDB Atlas URI.
+Create `.env.local` from `.env.example`, then set your private MongoDB Atlas URI. For MongoDB Atlas, use the connection string from **Database > Connect > Drivers** and replace `USERNAME`, `PASSWORD`, and `CLUSTER`.
 
 ```sh
-cp .env.example .env.local
+copy .env.example .env.local
 npm run db:ping
 ```
 
 Keep `.env.local` private. It is ignored by git.
+
+Required setting:
+
+```sh
+MONGODB_URI=mongodb+srv://USERNAME:PASSWORD@CLUSTER.mongodb.net/?retryWrites=true&w=majority
+```
+
+Optional settings:
+
+```sh
+MONGODB_DB=construction_quote_app
+PORT=3001
+HOST=127.0.0.1
+CLIENT_ORIGIN=http://localhost:5173
+```
 
 To use the in-app Server page, run the API server and Vite app in two terminals:
 
