@@ -4,10 +4,10 @@ import { formatMoney, formatQuoteReferenceNumber, getItemTotal, roundToTwo, sani
 import { inferMaterialTakeoffItems } from "../../utils/materialTakeoffRules";
 
 const MATERIAL_PRESETS = [
-  { name: "Drywall", baseUnit: "ft", productUnit: "sheets", productLength: "4", productWidth: "8", productHeight: "" },
-  { name: "Flooring", baseUnit: "ft", productUnit: "boxes", productLength: "", productWidth: "", productHeight: "" },
-  { name: "Baseboard", baseUnit: "ft", productUnit: "pieces", productLength: "8", productWidth: "", productHeight: "" },
-  { name: "Paint", baseUnit: "ft", productUnit: "gallons", productLength: "", productWidth: "", productHeight: "" }
+  { name: "Drywall", baseUnit: "ft", productUnit: "sheet", productLength: "4", productWidth: "8", productHeight: "" },
+  { name: "Flooring", baseUnit: "ft", productUnit: "sq ft", productLength: "", productWidth: "", productHeight: "" },
+  { name: "Baseboard", baseUnit: "ft", productUnit: "stick", productLength: "8", productWidth: "", productHeight: "" },
+  { name: "Paint", baseUnit: "ft", productUnit: "bundle coverage", productLength: "", productWidth: "", productHeight: "" }
 ];
 
 const MEASUREMENT_UNIT_OPTIONS = [
@@ -20,12 +20,39 @@ const MEASUREMENT_UNIT_OPTIONS = [
 ];
 
 const PRODUCT_UNIT_OPTIONS = [
-  { value: "sheets", label: "Sheets" },
-  { value: "boxes", label: "Boxes" },
-  { value: "pieces", label: "Pieces" },
-  { value: "rolls", label: "Rolls" },
-  { value: "gallons", label: "Gallons" }
+  { value: "sheet", label: "Sheet" },
+  { value: "panel", label: "Panel" },
+  { value: "board", label: "Board" },
+  { value: "foot", label: "Foot" },
+  { value: "meter", label: "Meter" },
+  { value: "length", label: "Length" },
+  { value: "stick", label: "Stick" },
+  { value: "sq ft", label: "Square foot" },
+  { value: "sq m", label: "Square meter" },
+  { value: "bundle coverage", label: "Bundle coverage" },
+  { value: "cubic yard", label: "Cubic yard" },
+  { value: "bag", label: "Bag" },
+  { value: "load", label: "Load" },
+  { value: "meter cubed", label: "m³" },
+  { value: "cubic volume", label: "Cubic volume" }
 ];
+
+const AREA_PRODUCT_UNITS = new Set(["sheet", "panel", "board", "sq ft", "sq m", "bundle coverage"]);
+const LINEAR_PRODUCT_UNITS = new Set(["foot", "meter", "length", "stick"]);
+const COVERAGE_PRODUCT_UNITS = new Set(["cubic yard", "cubic meter", "bag", "load", "meter cubed", "cubic volume"]);
+
+const getProductDimensionMode = (productUnit: string) => {
+  if (AREA_PRODUCT_UNITS.has(productUnit)) return "area";
+  if (LINEAR_PRODUCT_UNITS.has(productUnit)) return "linear";
+  if (COVERAGE_PRODUCT_UNITS.has(productUnit)) return "coverage";
+  return "area";
+};
+
+const getDefaultProductUnitForBaseUnit = (baseUnit: string) =>
+  baseUnit === "m" ? "sq m" : "sq ft";
+
+const shouldAutoUpdateSquareProductUnit = (productUnit: string) =>
+  !productUnit || productUnit === "sq ft" || productUnit === "sq m";
 
 const getSavedProductKey = (name: string) => String(name || "").trim().toLowerCase().replace(/\s+/g, "-");
 
@@ -351,6 +378,27 @@ export default function MaterialTakeoffPage({
           };
         }
 
+        if (field === "baseUnit") {
+          return {
+            ...material,
+            baseUnit: value,
+            productUnit: shouldAutoUpdateSquareProductUnit(material.productUnit)
+              ? getDefaultProductUnitForBaseUnit(value)
+              : material.productUnit
+          };
+        }
+
+        if (field === "productUnit") {
+          const productDimensionMode = getProductDimensionMode(value);
+
+          return {
+            ...material,
+            productUnit: value,
+            productWidth: productDimensionMode === "area" ? material.productWidth : "",
+            productHeight: ""
+          };
+        }
+
         return {
           ...material,
           [field]: numericFields.includes(field) ? sanitizeNumericInput(value) : value
@@ -409,6 +457,27 @@ export default function MaterialTakeoffPage({
         productUnit: "pieces",
         productLength: "",
         productWidth: "",
+        productHeight: ""
+      };
+    }
+
+    if (field === "baseUnit") {
+      return {
+        ...material,
+        baseUnit: value,
+        productUnit: shouldAutoUpdateSquareProductUnit(material.productUnit)
+          ? getDefaultProductUnitForBaseUnit(value)
+          : material.productUnit
+      };
+    }
+
+    if (field === "productUnit") {
+      const productDimensionMode = getProductDimensionMode(value);
+
+      return {
+        ...material,
+        productUnit: value,
+        productWidth: productDimensionMode === "area" ? material.productWidth : "",
         productHeight: ""
       };
     }
@@ -514,6 +583,7 @@ export default function MaterialTakeoffPage({
               const materialName = getMaterialDisplayName(material);
               const savedMaterial = materialName ? getSavedTakeoffProduct(materialName) : null;
               const isSavedMaterial = Boolean(savedMaterial);
+              const productDimensionMode = getProductDimensionMode(material.productUnit);
 
               return (
               <div key={material.id} className="takeoff-editor-row">
@@ -561,7 +631,7 @@ export default function MaterialTakeoffPage({
                   </div>
                 )}
                 <label>
-                  Sold As
+                  Sold By
                   {isEachMaterial ? (
                     <input value="Pieces" readOnly />
                   ) : (
@@ -572,20 +642,24 @@ export default function MaterialTakeoffPage({
                     </select>
                   )}
                 </label>
-                {!isEachMaterial ? (
+                {!isEachMaterial && productDimensionMode === "coverage" ? (
+                  <label>
+                    Coverage
+                    <input value={material.productLength} inputMode="decimal" placeholder="0" onChange={(event) => updateTakeoffMaterial(material.id, "productLength", event.target.value)} />
+                  </label>
+                ) : null}
+                {!isEachMaterial && productDimensionMode !== "coverage" ? (
                   <div className="takeoff-dimension-grid">
                     <label>
                       Product L
                       <input value={material.productLength} inputMode="decimal" placeholder="0" onChange={(event) => updateTakeoffMaterial(material.id, "productLength", event.target.value)} />
                     </label>
-                    <label>
-                      Product W
-                      <input value={material.productWidth} inputMode="decimal" placeholder="0" onChange={(event) => updateTakeoffMaterial(material.id, "productWidth", event.target.value)} />
-                    </label>
-                    <label>
-                      Product H
-                      <input value={material.productHeight} inputMode="decimal" placeholder="0" onChange={(event) => updateTakeoffMaterial(material.id, "productHeight", event.target.value)} />
-                    </label>
+                    {productDimensionMode === "area" ? (
+                      <label>
+                        Product W
+                        <input value={material.productWidth} inputMode="decimal" placeholder="0" onChange={(event) => updateTakeoffMaterial(material.id, "productWidth", event.target.value)} />
+                      </label>
+                    ) : null}
                   </div>
                 ) : null}
                 <label>
@@ -707,6 +781,7 @@ export default function MaterialTakeoffPage({
                 ? getCalculatedMaterials([editingMaterialDraft])[0]
                 : null;
               const isEachMaterial = editingMaterial?.baseUnit === "each";
+              const productDimensionMode = getProductDimensionMode(editingMaterial?.productUnit);
 
               if (isEditingRow && editingMaterial) {
                 return (
@@ -757,7 +832,7 @@ export default function MaterialTakeoffPage({
                         </div>
                       )}
                       <label>
-                        Sold As
+                        Sold By
                         {isEachMaterial ? (
                           <input value="Pieces" readOnly />
                         ) : (
@@ -768,20 +843,24 @@ export default function MaterialTakeoffPage({
                           </select>
                         )}
                       </label>
-                      {!isEachMaterial ? (
+                      {!isEachMaterial && productDimensionMode === "coverage" ? (
+                        <label>
+                          Coverage
+                          <input value={editingMaterial.productLength} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("productLength", event.target.value)} />
+                        </label>
+                      ) : null}
+                      {!isEachMaterial && productDimensionMode !== "coverage" ? (
                         <div className="takeoff-dimension-grid">
                           <label>
                             Product L
                             <input value={editingMaterial.productLength} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("productLength", event.target.value)} />
                           </label>
-                          <label>
-                            Product W
-                            <input value={editingMaterial.productWidth} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("productWidth", event.target.value)} />
-                          </label>
-                          <label>
-                            Product H
-                            <input value={editingMaterial.productHeight} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("productHeight", event.target.value)} />
-                          </label>
+                          {productDimensionMode === "area" ? (
+                            <label>
+                              Product W
+                              <input value={editingMaterial.productWidth} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("productWidth", event.target.value)} />
+                            </label>
+                          ) : null}
                         </div>
                       ) : null}
                       <label>
