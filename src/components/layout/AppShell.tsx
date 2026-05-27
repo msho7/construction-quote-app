@@ -9,6 +9,7 @@ import {
   Home,
   Menu,
   ReceiptText,
+  Ruler,
   Settings,
   UserRound,
   Users
@@ -38,6 +39,11 @@ const PAGE_META = {
     title: "Schedule",
     subtitle: "Plan project work, assign contractors, and monitor timing.",
     icon: CalendarDays
+  },
+  takeoff: {
+    title: "Material Takeoff",
+    subtitle: "Generate material quantities and totals from approved quotes.",
+    icon: Ruler
   },
   pricelist: {
     title: "Price List",

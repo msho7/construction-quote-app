@@ -1,9 +1,27 @@
 export const UNIT_OPTIONS = [
   { value: "each", label: "Each" },
+  { value: "sheets", label: "Sheets" },
+  { value: "boxes", label: "Boxes" },
+  { value: "pieces", label: "Pieces" },
+  { value: "rolls", label: "Rolls" },
+  { value: "gallons", label: "Gallons" },
+  { value: "in", label: "Inches" },
+  { value: "sq in", label: "Square Inches" },
+  { value: "cu in", label: "Cubic Inches" },
+  { value: "ft", label: "Feet" },
+  { value: "sq ft", label: "Square Feet" },
+  { value: "cu ft", label: "Cubic Feet" },
   { value: "lf", label: "Linear Feet" },
   { value: "sf", label: "Square Feet" },
   { value: "cm", label: "Centimeter" },
-  { value: "m", label: "Meter" }
+  { value: "sq cm", label: "Square Centimeters" },
+  { value: "cu cm", label: "Cubic Centimeters" },
+  { value: "m", label: "Meter" },
+  { value: "sq m", label: "Square Meters" },
+  { value: "cu m", label: "Cubic Meters" },
+  { value: "km", label: "Kilometers" },
+  { value: "sq km", label: "Square Kilometers" },
+  { value: "cu km", label: "Cubic Kilometers" }
 ];
 
 export const PAGE_OPTIONS = [
@@ -11,6 +29,7 @@ export const PAGE_OPTIONS = [
   { id: "analysis", label: "Analysis" },
   { id: "quotes", label: "Quotes" },
   { id: "schedule", label: "Schedule" },
+  { id: "takeoff", label: "Material Takeoff" },
   { id: "pricelist", label: "Price List" },
   { id: "contractor", label: "Contractors" },
   { id: "customer", label: "Customers" },

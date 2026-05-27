@@ -117,7 +117,7 @@ export default function QuotesLandingPage({
   onIncrementQuoteInvoicePart,
   onSetQuoteProjectStatus
 }) {
-  const [selectedProjectList, setSelectedProjectList] = useState(() => initialProjectList || "approved");
+  const [selectedProjectList, setSelectedProjectList] = useState(() => initialProjectList || "All Quotes");
   const [customerSearchTerm, setCustomerSearchTerm] = useState("");
   const customerScopedQuotes = customerFilter
     ? savedQuotes.filter((quote) => {

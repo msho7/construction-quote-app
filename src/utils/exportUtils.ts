@@ -274,7 +274,7 @@ const buildExcelWorkbook = (quote: any) => {
     createExcelRow(
       [
         createExcelCell({ index: 2, mergeAcross: 1, styleId: "SectionLabel", value: "BILL TO" }),
-        createExcelCell({ index: 4, mergeAcross: 1, styleId: "SectionLabel", value: "SHIP TO" }),
+        createExcelCell({ index: 4, mergeAcross: 1, styleId: "SectionLabel", value: "PROJECT DETAILS" }),
         createExcelCell({ index: 6, styleId: "MetaLabel", value: "Quote No:" }),
         createExcelCell({ styleId: "MetaValue", value: quoteNumber })
       ],
@@ -1100,7 +1100,7 @@ const buildPdfDocument = (quote, documentTitle) => {
         </div>
 
         <div class="bill-block">
-          <div class="bill-heading">SHIP TO</div>
+          <div class="bill-heading">PROJECT DETAILS</div>
           <p class="bill-line">${escapeHtml(quote.projectTitle || "Project Site")}</p>
           <p class="bill-line">${escapeHtml(quote.projectAddress || "")}</p>
         </div>

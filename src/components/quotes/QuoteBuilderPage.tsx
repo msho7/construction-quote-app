@@ -91,11 +91,12 @@ export default function QuoteBuilderPage({
                 View Schedule
               </Button>
             ) : null}
-            {isCurrentQuoteApproved && activeQuoteRecord ? (
-              <Button variant="secondary" onClick={() => openMaterialTakeoff(activeQuoteRecord.id, getCurrentQuoteTakeoffPayload())}>
-                Material Takeoff
-              </Button>
-            ) : null}
+            <Button
+              variant="secondary"
+              onClick={() => openMaterialTakeoff(activeQuoteRecord?.id || null, getCurrentQuoteTakeoffPayload())}
+            >
+              Generate Takeoff
+            </Button>
             {!isCurrentQuoteApproved && !isCurrentQuoteLocked ? (
               <>
                 <Button variant="secondary" onClick={markQuoteApproved}>✅ Mark Approved</Button>

@@ -16,6 +16,7 @@ const appStateKeys = [
   "savedCustomers",
   "savedQuotes",
   "savedRoomTemplates",
+  "savedTakeoffProducts",
   "themeMode"
 ];
 

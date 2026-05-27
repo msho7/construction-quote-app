@@ -164,6 +164,10 @@ export default function ConstructionQuoteApp() {
       safeJsonParse(localStorage.getItem("savedRoomTemplates"), [])
     );
   });
+  const [savedTakeoffProducts, setSavedTakeoffProducts] = useState(() => {
+    if (typeof window === "undefined") return {};
+    return safeJsonParse(localStorage.getItem("savedTakeoffProducts"), {});
+  });
   const [items, setItems] = useState(() => [createEmptyQuoteItem()]);
   const [newPriceItem, setNewPriceItem] = useState({ ...EMPTY_PRICE_ITEM });
   const [editingPriceItemName, setEditingPriceItemName] = useState("");
@@ -358,6 +362,14 @@ export default function ConstructionQuoteApp() {
           ));
         }
 
+        if (Object.prototype.hasOwnProperty.call(remoteState, "savedTakeoffProducts")) {
+          setSavedTakeoffProducts(
+            remoteState.savedTakeoffProducts && typeof remoteState.savedTakeoffProducts === "object"
+              ? remoteState.savedTakeoffProducts
+              : {}
+          );
+        }
+
         setStorageStatus({
           loading: false,
           connected: true,
@@ -398,6 +410,7 @@ export default function ConstructionQuoteApp() {
     savedCustomers,
     savedQuotes,
     savedRoomTemplates: savedRoomTemplates.filter((template) => !template.builtIn),
+    savedTakeoffProducts,
     themeMode
   }), [
     companySettings,
@@ -410,6 +423,7 @@ export default function ConstructionQuoteApp() {
     savedCustomers,
     savedQuotes,
     savedRoomTemplates,
+    savedTakeoffProducts,
     themeMode
   ]);
 
@@ -1158,6 +1172,12 @@ export default function ConstructionQuoteApp() {
     setCurrentPage("takeoff");
   };
 
+  const openTakeoffLanding = () => {
+    setSelectedTakeoffQuoteId(null);
+    setSelectedTakeoffQuoteDraft(null);
+    setCurrentPage("takeoff");
+  };
+
   const openCurrentDraftSchedule = () => {
     setSelectedScheduleQuoteId(null);
     setShowDraftSchedulePreview(true);
@@ -1438,6 +1458,175 @@ export default function ConstructionQuoteApp() {
     setDismissedSaveItemKeys([]);
     setShowDraftSchedulePreview(false);
     openQuoteBuilder();
+  };
+
+  const saveTakeoffProductSettings = (materials = []) => {
+    const nextProducts = materials
+      .filter((material) => String(material.name || "").trim())
+      .reduce((products, material) => {
+        const key = String(material.name || "").trim().toLowerCase().replace(/\s+/g, "-");
+
+        return {
+          ...products,
+          [key]: {
+            name: String(material.name || "").trim(),
+            baseUnit: material.baseUnit || "ft",
+            productUnit: material.baseUnit === "each" ? "pieces" : material.productUnit || "pieces",
+            productLength: material.productLength || "",
+            productWidth: material.productWidth || "",
+            productHeight: material.productHeight || "",
+            wastePercent: material.wastePercent || "",
+            pricePerUnit: material.pricePerUnit || ""
+          }
+        };
+      }, {});
+
+    if (!Object.keys(nextProducts).length) return;
+
+    setSavedTakeoffProducts((previous) => ({
+      ...previous,
+      ...nextProducts
+    }));
+  };
+
+  const saveTakeoffMaterialsToQuote = (materials = [], options: any = {}) => {
+    const takeoffItems = materials
+      .filter((material) => String(material.name || "").trim() && Number(material.quantity || 0) > 0)
+      .map((material) =>
+        createEmptyQuoteItem({
+          name: String(material.name || "").trim(),
+          roomName: material.roomName || "",
+          quantity: Number(material.quantity || 0),
+          unit: material.unit || "each",
+          pricePerUnit: Number(material.pricePerUnit || 0),
+          duration: Number(material.duration || 1),
+          category: "Material"
+        })
+      );
+
+    if (!takeoffItems.length) {
+      showNotification("Add at least one material with a calculated quantity before saving.", "warning");
+      return;
+    }
+
+    if (options.createNewQuote) {
+      setEditingQuoteId(null);
+      setLockedQuoteViewId(null);
+      setSelectedQuoteCustomerId("");
+      setQuoteCustomerProfile(normalizeCustomerRecord());
+      setProjectTitle("");
+      setClientName("");
+      setProjectAddress("");
+      setQuoteDate(getTodayDate());
+      setTaxRate(13);
+      setStartDate("");
+      setSchedule([]);
+      setItems(takeoffItems);
+      setSelectedTemplateId("");
+      setShowTemplateBuilder(false);
+      setTemplateFormValues({ ...DEFAULT_TEMPLATE_VALUES.bathroom });
+      setShowExportModal(false);
+      setExportFileName("");
+      setActiveQuoteItemIndex(null);
+      setDismissedSaveItemKeys([]);
+      setShowDraftSchedulePreview(false);
+    } else {
+      setItems((previous) => {
+        const hasExistingQuoteItems = previous.some((item) => String(item.name || "").trim());
+        return hasExistingQuoteItems ? [...previous, ...takeoffItems] : takeoffItems;
+      });
+      setActiveQuoteItemIndex(null);
+    }
+
+    setSelectedTakeoffQuoteId(null);
+    setSelectedTakeoffQuoteDraft(null);
+    showNotification(`${takeoffItems.length} material ${takeoffItems.length === 1 ? "line was" : "lines were"} added to the quote.`, "success");
+    openQuoteBuilder();
+  };
+
+  const getTakeoffMaterialKey = (item: any = {}) =>
+    [
+      getNormalizedText(item.name),
+      getNormalizedText(item.unit),
+      getNormalizedText(item.category || "Material")
+    ].join("|");
+
+  const applyTakeoffMaterialRowUpdate = (quoteLike: any = {}, row: any = {}, draft: any = {}) => {
+    const nextName = String(draft.name || row.name || "").trim();
+    const nextUnit = draft.unit || row.unit || "each";
+    const nextQuantity = Number(draft.quantity || 0);
+    const nextPricePerUnit = Number(draft.pricePerUnit || 0);
+    const quoteItems = quoteLike.items || [];
+    const matchingItems = quoteItems.filter((item) => getTakeoffMaterialKey(item) === row.key);
+    const matchingQuantity = matchingItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    let matchedIndex = 0;
+    let didUpdateExistingItem = false;
+
+    if (!nextName || nextQuantity <= 0) return quoteLike;
+
+    const updatedItems = quoteItems.map((item) => {
+      if (getTakeoffMaterialKey(item) !== row.key) return item;
+
+      const ratio = matchingQuantity > 0
+        ? Number(item.quantity || 0) / matchingQuantity
+        : matchedIndex === 0
+          ? 1
+          : 0;
+      matchedIndex += 1;
+      didUpdateExistingItem = true;
+
+      return {
+        ...item,
+        name: nextName,
+        quantity: Math.round(nextQuantity * ratio * 10000) / 10000,
+        unit: nextUnit,
+        pricePerUnit: nextPricePerUnit,
+        category: "Material"
+      };
+    });
+
+    if (!didUpdateExistingItem) {
+      updatedItems.push(createEmptyQuoteItem({
+        name: nextName,
+        quantity: nextQuantity,
+        unit: nextUnit,
+        pricePerUnit: nextPricePerUnit,
+        category: "Material"
+      }));
+    }
+
+    return {
+      ...quoteLike,
+      items: updatedItems
+    };
+  };
+
+  const updateTakeoffMaterialRow = (row, draft) => {
+    if (savedTakeoffQuote && isProjectLocked(savedTakeoffQuote)) {
+      showNotification("Completed projects are locked and cannot be edited.", "warning");
+      return;
+    }
+
+    const baseQuote = selectedTakeoffQuote || { items };
+    const nextTakeoffQuote = applyTakeoffMaterialRowUpdate(baseQuote, row, draft);
+
+    setSelectedTakeoffQuoteDraft(nextTakeoffQuote);
+
+    if (selectedTakeoffQuoteId) {
+      setSavedQuotes((previous) =>
+        previous.map((quote) =>
+          quote.id === selectedTakeoffQuoteId
+            ? applyTakeoffMaterialRowUpdate(quote, row, draft)
+            : quote
+        )
+      );
+    }
+
+    if (!selectedTakeoffQuoteId || editingQuoteId === selectedTakeoffQuoteId || selectedTakeoffQuoteDraft) {
+      setItems((previous) => applyTakeoffMaterialRowUpdate({ items: previous }, row, draft).items);
+    }
+
+    showNotification("Material takeoff line updated.");
   };
 
   const openTemplateBuilder = (templateId) => {
@@ -1948,8 +2137,13 @@ export default function ConstructionQuoteApp() {
       quote={selectedTakeoffQuote}
       savedQuote={savedTakeoffQuote}
       priceList={priceList}
+      savedTakeoffProducts={savedTakeoffProducts}
       onBack={openQuotesLanding}
       onOpenQuote={loadQuote}
+      onNewTakeoff={openTakeoffLanding}
+      onSaveTakeoffProducts={saveTakeoffProductSettings}
+      onSaveMaterialsToQuote={saveTakeoffMaterialsToQuote}
+      onUpdateTakeoffMaterialRow={updateTakeoffMaterialRow}
     />
   );
 
@@ -2109,6 +2303,8 @@ export default function ConstructionQuoteApp() {
       openQuotesLanding();
     } else if (pageId === "schedule") {
       openScheduleLanding();
+    } else if (pageId === "takeoff") {
+      openTakeoffLanding();
     } else {
       setCurrentPage(pageId);
     }

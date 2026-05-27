@@ -13,6 +13,7 @@ export const APP_STATE_KEYS = [
   "savedCustomers",
   "savedQuotes",
   "savedRoomTemplates",
+  "savedTakeoffProducts",
   "themeMode"
 ];
 
@@ -42,4 +43,3 @@ export const normalizeRemoteSavedCustomers = (customers = []) =>
   (Array.isArray(customers) ? customers : [])
     .map((profile) => normalizeCustomerRecord(profile))
     .filter((profile) => hasCustomerProfileData(profile));
-
