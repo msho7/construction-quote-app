@@ -1,10 +1,13 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { useDarkMode } from "./hooks/useDarkMode";
 import {
   PROJECT_TEMPLATES,
   DEFAULT_ITEM_MARKUP_RATE,
   EMPTY_PRICE_ITEM,
-  DEFAULT_TEMPLATE_VALUES
+  DEFAULT_TEMPLATE_VALUES,
+  ACCESS_PAGE_OPTIONS,
+  DEFAULT_ROLE_ACCESS
 } from "./constants/appConstants";
 import {
   safeJsonParse,
@@ -55,6 +58,7 @@ import {
   assignContractorsToSchedule,
   buildScheduleFromItems,
   getContractorTradeList,
+  getScheduleContractorPreferenceKey,
   getScheduleTaskWithContractor,
   getSuggestedTradeForTask,
   markScheduleTaskCompletedInCollection,
@@ -87,6 +91,7 @@ import {
 } from "./utils/quotePayloadUtils";
 import { Card } from "./components/ui";
 import AnalysisPage from "./components/analysis/AnalysisPage";
+import LoginPage from "./components/auth/LoginPage";
 import CustomerPage from "./components/customer/CustomerPage";
 import DashboardHomePage from "./components/dashboard/DashboardHomePage";
 import AppShell from "./components/layout/AppShell";
@@ -100,8 +105,81 @@ import MaterialTakeoffPage from "./components/takeoff/MaterialTakeoffPage";
 
 const ContractorPage = lazy(() => import("./components/contractor/ContractorPage"));
 
+const isNativeTabletDevice = () => {
+  if (typeof window === "undefined" || typeof navigator === "undefined" || !Capacitor.isNativePlatform()) {
+    return false;
+  }
+
+  const platform = Capacitor.getPlatform();
+  const userAgent = navigator.userAgent || "";
+  const navigatorPlatform = navigator.platform || "";
+  const maxTouchPoints = navigator.maxTouchPoints || 0;
+
+  if (platform === "ios") {
+    return (
+      /iPad/i.test(userAgent) ||
+      (navigatorPlatform === "MacIntel" && maxTouchPoints > 1)
+    );
+  }
+
+  if (platform === "android") {
+    const shortestScreenSide = Math.min(window.screen?.width || 0, window.screen?.height || 0);
+    return shortestScreenSide >= 600;
+  }
+
+  return false;
+};
+
+const shouldUseNativePhoneExperience = () => {
+  if (typeof window === "undefined" || !Capacitor.isNativePlatform() || isNativeTabletDevice()) {
+    return false;
+  }
+
+  return window.matchMedia("(max-width: 767px)").matches;
+};
+
+const DEFAULT_ADMIN_ACCOUNT = {
+  id: "user-default-administrator",
+  name: "Administrator",
+  email: "admin@buildquote.local",
+  password: "Admin123!",
+  role: "administrator",
+  allowedPageIds: DEFAULT_ROLE_ACCESS.administrator,
+  createdAt: "2026-06-08T00:00:00.000Z"
+};
+
+const getDefaultPageAccessForRole = (role = "manager") =>
+  role === "administrator"
+    ? DEFAULT_ROLE_ACCESS.administrator
+    : DEFAULT_ROLE_ACCESS[role] || DEFAULT_ROLE_ACCESS.contractor;
+
+const getInitialLocalUserAccounts = () => {
+  if (typeof window === "undefined") return [DEFAULT_ADMIN_ACCOUNT];
+
+  const storedAccounts = safeJsonParse(localStorage.getItem("appUserAccounts"), []);
+  const hasDefaultAdmin = storedAccounts.some(
+    (account) => String(account.email || "").toLowerCase() === DEFAULT_ADMIN_ACCOUNT.email
+  );
+  const nextAccounts = hasDefaultAdmin
+    ? storedAccounts
+    : [DEFAULT_ADMIN_ACCOUNT, ...storedAccounts];
+
+  if (!hasDefaultAdmin) {
+    localStorage.setItem("appUserAccounts", JSON.stringify(nextAccounts));
+  }
+
+  return nextAccounts;
+};
+
 export default function ConstructionQuoteApp() {
   const systemDark = useDarkMode();
+  const [currentUser, setCurrentUser] = useState(() => {
+    if (typeof window === "undefined") return null;
+    return safeJsonParse(localStorage.getItem("appSessionUser"), null);
+  });
+  const [localUserAccounts, setLocalUserAccounts] = useState(() => {
+    return getInitialLocalUserAccounts();
+  });
   const [themeMode, setThemeMode] = useState(() => {
     if (typeof window === "undefined") return "system";
     return localStorage.getItem("themeMode") || "system";
@@ -168,6 +246,10 @@ export default function ConstructionQuoteApp() {
     if (typeof window === "undefined") return {};
     return safeJsonParse(localStorage.getItem("savedTakeoffProducts"), {});
   });
+  const [scheduleContractorPreferences, setScheduleContractorPreferences] = useState(() => {
+    if (typeof window === "undefined") return {};
+    return safeJsonParse(localStorage.getItem("scheduleContractorPreferences"), {});
+  });
   const [items, setItems] = useState(() => [createEmptyQuoteItem()]);
   const [newPriceItem, setNewPriceItem] = useState({ ...EMPTY_PRICE_ITEM });
   const [editingPriceItemName, setEditingPriceItemName] = useState("");
@@ -205,8 +287,239 @@ export default function ConstructionQuoteApp() {
     lastSavedAt: "",
     error: ""
   });
+  const [scopeLocationLoading, setScopeLocationLoading] = useState(false);
+  const [isNativeTabletExperience, setIsNativeTabletExperience] = useState(isNativeTabletDevice);
+  const [isPhoneExperience, setIsPhoneExperience] = useState(shouldUseNativePhoneExperience);
   const [remoteStorageReady, setRemoteStorageReady] = useState(false);
   const notificationTimeoutRef = useRef(null);
+  const phoneRestrictedPages = useMemo(() => new Set(["analysis", "takeoff", "contractor"]), []);
+  const userAccessLevel = currentUser?.role || "contractor";
+  const canManageAccess = userAccessLevel === "administrator";
+  const canAssignScopeWork = userAccessLevel === "administrator" || userAccessLevel === "manager";
+  const currentUserAllowedPageIds = useMemo(() => {
+    if (userAccessLevel === "administrator") return ACCESS_PAGE_OPTIONS.map((page) => page.id);
+    return Array.isArray(currentUser?.allowedPageIds)
+      ? currentUser.allowedPageIds
+      : getDefaultPageAccessForRole(userAccessLevel);
+  }, [currentUser, userAccessLevel]);
+  const allowedPageSet = useMemo(() => new Set(currentUserAllowedPageIds), [currentUserAllowedPageIds]);
+  const canAssignScheduleContractors =
+    userAccessLevel === "administrator" ||
+    userAccessLevel === "manager" ||
+    (allowedPageSet.has("schedule") && allowedPageSet.has("contractor"));
+  const hasPageAccess = (pageId) => {
+    if (!currentUser) return true;
+    if (userAccessLevel === "administrator") return true;
+    if (isPhoneExperience && pageId === "quotes") {
+      return allowedPageSet.has("scope") || allowedPageSet.has("quotes");
+    }
+    return allowedPageSet.has(pageId);
+  };
+  const firstAllowedPageId = currentUserAllowedPageIds[0] || "";
+
+  const persistLocalUserAccounts = (accounts = []) => {
+    setLocalUserAccounts(accounts);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("appUserAccounts", JSON.stringify(accounts));
+    }
+  };
+
+  const upsertContractorProfileForUserAccount = (account: any = {}) => {
+    if (account.role !== "contractor") return;
+
+    const accountKey = account.id || account.email;
+    const accountEmail = String(account.email || "").trim().toLowerCase();
+
+    setSavedContractors((previous) => {
+      const existingContractor = previous.find((contractor) =>
+        contractor.userAccountId === accountKey ||
+        (accountEmail && String(contractor.email || "").trim().toLowerCase() === accountEmail)
+      );
+
+      if (existingContractor) {
+        return previous.map((contractor) =>
+          contractor.id !== existingContractor.id
+            ? contractor
+            : normalizeContractorProfile({
+                ...contractor,
+                userAccountId: accountKey,
+                contactName: account.name || contractor.contactName || "",
+                companyName: contractor.companyName || account.name || account.email,
+                email: account.email || contractor.email || "",
+                status: "active"
+              }, contractorExpirySettings)
+        );
+      }
+
+      return [
+        createSavedContractorRecord({
+          userAccountId: accountKey,
+          companyName: account.name || account.email,
+          contactName: account.name || "",
+          email: account.email || "",
+          status: "active",
+          notes: "Created from contractor user account."
+        }),
+        ...previous
+      ];
+    });
+  };
+
+  const loginUser = ({ email, password }) => {
+    const trimmedEmail = String(email || "").trim().toLowerCase();
+    const account = localUserAccounts.find((user) => String(user.email || "").toLowerCase() === trimmedEmail);
+
+    if (!account || account.password !== password) {
+      return { ok: false, message: "That email and password do not match an account." };
+    }
+
+    const nextUser = {
+      name: account.name,
+      email: account.email,
+      role: account.role,
+      allowedPageIds: account.role === "administrator"
+        ? DEFAULT_ROLE_ACCESS.administrator
+        : Array.isArray(account.allowedPageIds)
+          ? account.allowedPageIds
+          : getDefaultPageAccessForRole(account.role),
+      signedInAt: new Date().toISOString()
+    };
+
+    setCurrentUser(nextUser);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("appSessionUser", JSON.stringify(nextUser));
+    }
+
+    return { ok: true };
+  };
+
+  const createUserAccount = ({ name, email, password, role, allowedPageIds }, options: any = {}) => {
+    const trimmedName = String(name || "").trim();
+    const trimmedEmail = String(email || "").trim().toLowerCase();
+
+    if (localUserAccounts.some((user) => String(user.email || "").toLowerCase() === trimmedEmail)) {
+      return { ok: false, message: "An account already exists for that email." };
+    }
+
+    const nextAccount = {
+      id: `user-${Date.now()}`,
+      name: trimmedName,
+      email: trimmedEmail,
+      password,
+      role: role || "manager",
+      allowedPageIds: role === "administrator"
+        ? getDefaultPageAccessForRole("administrator")
+        : Array.isArray(allowedPageIds)
+          ? allowedPageIds
+          : getDefaultPageAccessForRole(role || "manager"),
+      createdAt: new Date().toISOString()
+    };
+
+    persistLocalUserAccounts([...localUserAccounts, nextAccount]);
+    upsertContractorProfileForUserAccount(nextAccount);
+
+    if (options.signIn === false) {
+      return { ok: true };
+    }
+
+    const nextUser = {
+      name: nextAccount.name,
+      email: nextAccount.email,
+      role: nextAccount.role,
+      allowedPageIds: nextAccount.allowedPageIds,
+      signedInAt: new Date().toISOString()
+    };
+
+    setCurrentUser(nextUser);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("appSessionUser", JSON.stringify(nextUser));
+    }
+
+    return { ok: true };
+  };
+
+  const deleteUserAccount = (accountKey) => {
+    const nextAccounts = localUserAccounts.filter((account) => (account.id || account.email) !== accountKey);
+    persistLocalUserAccounts(nextAccounts);
+  };
+
+  const updateUserAccount = (accountKey, updates) => {
+    const trimmedName = String(updates.name || "").trim();
+    const trimmedEmail = String(updates.email || "").trim().toLowerCase();
+    const nextPassword = String(updates.password || "");
+    const nextRole = updates.role || "manager";
+    const nextAllowedPageIds = nextRole === "administrator"
+      ? DEFAULT_ROLE_ACCESS.administrator
+      : Array.isArray(updates.allowedPageIds)
+        ? updates.allowedPageIds
+        : getDefaultPageAccessForRole(nextRole);
+
+    if (!trimmedName || !trimmedEmail || !nextPassword) {
+      return { ok: false, message: "Enter a name, email, and password for the user." };
+    }
+
+    if (nextPassword.length < 6) {
+      return { ok: false, message: "Use at least 6 characters for the password." };
+    }
+
+    const duplicateAccount = localUserAccounts.find((account) => {
+      const key = account.id || account.email;
+      return key !== accountKey && String(account.email || "").toLowerCase() === trimmedEmail;
+    });
+
+    if (duplicateAccount) {
+      return { ok: false, message: "Another account already uses that email." };
+    }
+
+    let updatedAccount = null;
+    const nextAccounts = localUserAccounts.map((account) => {
+      const key = account.id || account.email;
+      if (key !== accountKey) return account;
+
+      updatedAccount = {
+        ...account,
+        name: trimmedName,
+        email: trimmedEmail,
+        password: nextPassword,
+        role: nextRole,
+        allowedPageIds: nextAllowedPageIds,
+        updatedAt: new Date().toISOString()
+      };
+
+      return updatedAccount;
+    });
+
+    if (!updatedAccount) {
+      return { ok: false, message: "Could not find that user account." };
+    }
+
+    persistLocalUserAccounts(nextAccounts);
+    upsertContractorProfileForUserAccount(updatedAccount);
+
+    if (currentUser && String(currentUser.email || "").toLowerCase() === String(localUserAccounts.find((account) => (account.id || account.email) === accountKey)?.email || "").toLowerCase()) {
+      const nextUser = {
+        name: updatedAccount.name,
+        email: updatedAccount.email,
+        role: updatedAccount.role,
+        allowedPageIds: updatedAccount.allowedPageIds,
+        signedInAt: currentUser.signedInAt || new Date().toISOString()
+      };
+
+      setCurrentUser(nextUser);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("appSessionUser", JSON.stringify(nextUser));
+      }
+    }
+
+    return { ok: true };
+  };
+
+  const logoutUser = () => {
+    setCurrentUser(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("appSessionUser");
+    }
+  };
 
   const showNotification = (message, variant = "success") => {
     if (notificationTimeoutRef.current) {
@@ -370,6 +683,14 @@ export default function ConstructionQuoteApp() {
           );
         }
 
+        if (Object.prototype.hasOwnProperty.call(remoteState, "scheduleContractorPreferences")) {
+          setScheduleContractorPreferences(
+            remoteState.scheduleContractorPreferences && typeof remoteState.scheduleContractorPreferences === "object"
+              ? remoteState.scheduleContractorPreferences
+              : {}
+          );
+        }
+
         setStorageStatus({
           loading: false,
           connected: true,
@@ -411,6 +732,7 @@ export default function ConstructionQuoteApp() {
     savedQuotes,
     savedRoomTemplates: savedRoomTemplates.filter((template) => !template.builtIn),
     savedTakeoffProducts,
+    scheduleContractorPreferences,
     themeMode
   }), [
     companySettings,
@@ -424,6 +746,7 @@ export default function ConstructionQuoteApp() {
     savedQuotes,
     savedRoomTemplates,
     savedTakeoffProducts,
+    scheduleContractorPreferences,
     themeMode
   ]);
 
@@ -490,6 +813,38 @@ export default function ConstructionQuoteApp() {
     []
   );
 
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const updateDeviceExperience = () => {
+      setIsNativeTabletExperience(isNativeTabletDevice());
+      setIsPhoneExperience(shouldUseNativePhoneExperience());
+    };
+
+    updateDeviceExperience();
+    mediaQuery.addEventListener?.("change", updateDeviceExperience);
+
+    return () => mediaQuery.removeEventListener?.("change", updateDeviceExperience);
+  }, []);
+
+  useEffect(() => {
+    if (!isPhoneExperience || !phoneRestrictedPages.has(currentPage)) return;
+    openQuotesLanding();
+  }, [currentPage, isPhoneExperience, phoneRestrictedPages]);
+
+  useEffect(() => {
+    if (!currentUser || hasPageAccess(currentPage)) return;
+    if (!firstAllowedPageId) return;
+
+    if (firstAllowedPageId === "scope") {
+      openScopeLanding();
+      return;
+    }
+
+    openNavigationPage(firstAllowedPageId);
+  }, [currentPage, currentUser, firstAllowedPageId, currentUserAllowedPageIds, isPhoneExperience]);
+
   const updateItem = (index, field, value) => {
     setItems((previous) => {
       const targetItem = previous[index];
@@ -511,7 +866,7 @@ export default function ConstructionQuoteApp() {
           ? item
           : {
               ...item,
-              [field]: ["name", "unit", "category"].includes(field)
+              [field]: ["name", "unit", "category", "assignedContractorId", "assignedContractorName", "scopePhotoNames"].includes(field)
                 ? value
                 : sanitizeNumericInput(value)
             }
@@ -765,6 +1120,140 @@ export default function ConstructionQuoteApp() {
     setQuoteCustomerProfile(normalizedCustomer);
     setClientName(getCustomerDisplayName(normalizedCustomer));
     setProjectAddress(getProfileAddressDisplay(normalizedCustomer) || "");
+  };
+
+  const updateQuoteCustomerProfile = (field, value) => {
+    const previousCustomer = normalizeCustomerRecord(quoteCustomerProfile);
+    const previousAddress = getProfileAddressDisplay(previousCustomer);
+    const nextCustomer = normalizeCustomerRecord({
+      ...previousCustomer,
+      [field]: value
+    });
+    const nextCustomerName = getCustomerDisplayName(nextCustomer);
+    const nextAddress = getProfileAddressDisplay(nextCustomer);
+
+    if (selectedQuoteCustomerId) {
+      setSelectedQuoteCustomerId("");
+    }
+
+    setQuoteCustomerProfile(nextCustomer);
+    setClientName(nextCustomerName === "Customer" ? "" : nextCustomerName);
+
+    if (
+      ["address", "unitNumber", "city", "province", "postalCode"].includes(field) &&
+      (!projectAddress.trim() || projectAddress === previousAddress)
+    ) {
+      setProjectAddress(nextAddress);
+    }
+  };
+
+  const normalizeAddressForMatching = (value = "") =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/\b(street|st)\b/g, "st")
+      .replace(/\b(avenue|ave)\b/g, "ave")
+      .replace(/\b(road|rd)\b/g, "rd")
+      .replace(/\b(drive|dr)\b/g, "dr")
+      .replace(/\b(north|south|east|west)\b/g, "")
+      .replace(/[^a-z0-9]/g, "");
+
+  const getLocatedAddressDisplay = (address: Record<string, string> = {}) => {
+    const houseNumber = address.house_number || "";
+    const road = address.road || address.pedestrian || address.footway || address.path || "";
+    const city = address.city || address.town || address.village || address.hamlet || "";
+    const province = address.state || address.region || "";
+    const postalCode = address.postcode || "";
+    const streetLine = [houseNumber, road].filter(Boolean).join(" ");
+
+    if (Capacitor.isNativePlatform()) {
+      return [streetLine, province].filter(Boolean).join(", ");
+    }
+
+    const localityLine = [city, province, postalCode].filter(Boolean).join(", ");
+    return [streetLine, localityLine].filter(Boolean).join(", ");
+  };
+
+  const findCustomerByAddress = (address = "") => {
+    const normalizedLocatedAddress = normalizeAddressForMatching(address);
+    if (!normalizedLocatedAddress) return null;
+
+    return savedCustomers.find((customer) => {
+      const customerAddress = getProfileAddressDisplay(customer);
+      const normalizedCustomerAddress = normalizeAddressForMatching(customerAddress);
+      if (!normalizedCustomerAddress) return false;
+
+      return (
+        normalizedLocatedAddress.includes(normalizedCustomerAddress) ||
+        normalizedCustomerAddress.includes(normalizedLocatedAddress)
+      );
+    }) || null;
+  };
+
+  const applyScopeLocatedAddress = (address = "") => {
+    const trimmedAddress = String(address || "").trim();
+    if (!trimmedAddress) return;
+
+    setProjectAddress(trimmedAddress);
+
+    const matchedCustomer = findCustomerByAddress(trimmedAddress);
+    if (!matchedCustomer) {
+      showNotification("Location added. No saved customer matched that address.", "warning");
+      return;
+    }
+
+    const normalizedCustomer = normalizeCustomerRecord(matchedCustomer);
+    setSelectedQuoteCustomerId(normalizedCustomer.id || "");
+    setQuoteCustomerProfile(normalizedCustomer);
+    setClientName(getCustomerDisplayName(normalizedCustomer));
+    showNotification(`Location added and ${getCustomerDisplayName(normalizedCustomer)} was selected.`);
+  };
+
+  const useScopeCurrentLocation = async () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      showNotification("Precise location is not available on this device.", "warning");
+      return;
+    }
+
+    setScopeLocationLoading(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&addressdetails=1`
+          );
+          const locationData = await response.json();
+          const locatedAddress =
+            getLocatedAddressDisplay(locationData.address || {}) ||
+            locationData.display_name ||
+            `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+          applyScopeLocatedAddress(locatedAddress);
+        } catch (error) {
+          applyScopeLocatedAddress(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+          showNotification("Precise location was added, but the address lookup did not respond.", "warning");
+        } finally {
+          setScopeLocationLoading(false);
+        }
+      },
+      (error) => {
+        setScopeLocationLoading(false);
+        const permissionDenied = error.code === error.PERMISSION_DENIED;
+        showNotification(
+          permissionDenied
+            ? "Location permission was denied. Enable location access for this app in iPhone Settings."
+            : "Could not get the current location. Try again near the jobsite.",
+          "warning"
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      }
+    );
   };
 
   const selectPriceItem = (index, selectedName) => {
@@ -1133,7 +1622,11 @@ export default function ConstructionQuoteApp() {
     setQuotesCustomerFilter(options.customerFilter || null);
     setQuotesInitialProjectList(options.projectList || "");
     setQuotesView("landing");
-    setCurrentPage("quotes");
+    setCurrentPage(options.page || "quotes");
+  };
+
+  const openScopeLanding = (options: any = {}) => {
+    openQuotesLanding({ ...options, page: "scope" });
   };
 
   const openCustomerQuotesLanding = (customer, projectList = "") => {
@@ -1149,9 +1642,9 @@ export default function ConstructionQuoteApp() {
     });
   };
 
-  const openQuoteBuilder = () => {
+  const openQuoteBuilder = (page = "quotes") => {
     setQuotesView("builder");
-    setCurrentPage("quotes");
+    setCurrentPage(page);
   };
 
   const openScheduleLanding = () => {
@@ -1198,7 +1691,8 @@ export default function ConstructionQuoteApp() {
         buildScheduleFromItems(savedQuote.items || [], savedQuote.startDate),
         savedQuote.schedule || []
       ),
-      savedContractors
+      savedContractors,
+      scheduleContractorPreferences
     );
 
     setSavedQuotes((previous) =>
@@ -1261,6 +1755,43 @@ export default function ConstructionQuoteApp() {
     );
   };
 
+  const saveDraftScheduleSnapshot = (scheduleSnapshot = []) => {
+    const nextSchedule = normalizeScheduleItems(scheduleSnapshot);
+
+    setSchedule(nextSchedule);
+    setItems((previousItems) =>
+      nextSchedule.reduce(
+        (nextItems, task) => syncScheduleDurationToItems(nextItems, task),
+        previousItems
+      )
+    );
+    setStartDate(nextSchedule[0]?.startDate || startDate);
+    showNotification("Schedule saved.");
+  };
+
+  const saveQuoteScheduleSnapshot = (quoteId, scheduleSnapshot = []) => {
+    const nextSchedule = normalizeScheduleItems(scheduleSnapshot);
+
+    setSavedQuotes((previous) =>
+      previous.map((quote) => {
+        if (quote.id !== quoteId) return quote;
+
+        const nextItems = nextSchedule.reduce(
+          (quoteItems, task) => syncScheduleDurationToItems(quoteItems, task),
+          quote.items || []
+        );
+
+        return {
+          ...quote,
+          startDate: nextSchedule[0]?.startDate || quote.startDate,
+          items: nextItems,
+          schedule: nextSchedule
+        };
+      })
+    );
+    showNotification("Schedule saved.");
+  };
+
   const markDraftScheduleTaskCompleted = (taskIndex) => {
     setSchedule((previous) => markScheduleTaskCompletedInCollection(previous, taskIndex));
   };
@@ -1318,26 +1849,40 @@ export default function ConstructionQuoteApp() {
     );
   };
 
+  const rememberScheduleContractorPreference = (task, contractorId) => {
+    const preferenceKey = getScheduleContractorPreferenceKey(task);
+    if (!preferenceKey || !contractorId) return;
+
+    setScheduleContractorPreferences((previous) => ({
+      ...previous,
+      [preferenceKey]: contractorId
+    }));
+  };
+
   const assignDraftScheduleTaskContractor = (taskIndex, contractorId) => {
     const selectedContractor = savedContractors.find((contractor) => contractor.id === contractorId) || null;
     let taskTrade = "";
+    let selectedTask = null;
 
     setSchedule((previous) =>
       normalizeScheduleItems(
         previous.map((task, index) => {
           if (index !== taskIndex) return task;
+          selectedTask = task;
           taskTrade = task.suggestedTrade || getSuggestedTradeForTask(task);
           return getScheduleTaskWithContractor(task, selectedContractor);
         })
       )
     );
 
+    rememberScheduleContractorPreference(selectedTask, contractorId);
     addTradeToContractorIfNeeded(contractorId, taskTrade);
   };
 
   const assignSavedQuoteScheduleTaskContractor = (quoteId, taskIndex, contractorId) => {
     const selectedContractor = savedContractors.find((contractor) => contractor.id === contractorId) || null;
     let taskTrade = "";
+    let selectedTask = null;
 
     setSavedQuotes((previous) =>
       previous.map((quote) => {
@@ -1348,6 +1893,7 @@ export default function ConstructionQuoteApp() {
           schedule: normalizeScheduleItems(
             (quote.schedule || []).map((task, index) => {
               if (index !== taskIndex) return task;
+              selectedTask = task;
               taskTrade = task.suggestedTrade || getSuggestedTradeForTask(task);
               return getScheduleTaskWithContractor(task, selectedContractor);
             })
@@ -1356,6 +1902,7 @@ export default function ConstructionQuoteApp() {
       })
     );
 
+    rememberScheduleContractorPreference(selectedTask, contractorId);
     addTradeToContractorIfNeeded(contractorId, taskTrade);
   };
 
@@ -1460,6 +2007,30 @@ export default function ConstructionQuoteApp() {
     openQuoteBuilder();
   };
 
+  const startNewScope = () => {
+    setEditingQuoteId(null);
+    setLockedQuoteViewId(null);
+    setSelectedQuoteCustomerId("");
+    setQuoteCustomerProfile(normalizeCustomerRecord());
+    setProjectTitle("");
+    setClientName("");
+    setProjectAddress("");
+    setQuoteDate(getTodayDate());
+    setTaxRate(13);
+    setStartDate("");
+    setSchedule([]);
+    setItems([createEmptyQuoteItem()]);
+    setSelectedTemplateId("");
+    setShowTemplateBuilder(false);
+    setTemplateFormValues({ ...DEFAULT_TEMPLATE_VALUES.bathroom });
+    setShowExportModal(false);
+    setExportFileName("");
+    setActiveQuoteItemIndex(null);
+    setDismissedSaveItemKeys([]);
+    setShowDraftSchedulePreview(false);
+    openQuoteBuilder("scope");
+  };
+
   const saveTakeoffProductSettings = (materials = []) => {
     const nextProducts = materials
       .filter((material) => String(material.name || "").trim())
@@ -1506,6 +2077,41 @@ export default function ConstructionQuoteApp() {
 
     if (!takeoffItems.length) {
       showNotification("Add at least one material with a calculated quantity before saving.", "warning");
+      return;
+    }
+
+    if (options.stayOnTakeoff) {
+      if (selectedTakeoffQuoteId) {
+        const appendTakeoffItems = (quoteLike: any = {}) => ({
+          ...quoteLike,
+          items: [...(quoteLike.items || []), ...takeoffItems]
+        });
+
+        setSavedQuotes((previous) =>
+          previous.map((quote) =>
+            quote.id === selectedTakeoffQuoteId
+              ? appendTakeoffItems(quote)
+              : quote
+          )
+        );
+        setSelectedTakeoffQuoteDraft((previous) =>
+          appendTakeoffItems(previous || selectedTakeoffQuote || { items: [] })
+        );
+
+        if (editingQuoteId === selectedTakeoffQuoteId) {
+          setItems((previous) => [...previous, ...takeoffItems]);
+        }
+      } else {
+        setItems((previous) => [...previous, ...takeoffItems]);
+        setSelectedTakeoffQuoteDraft((previous) => ({
+          ...(previous || {}),
+          takeoffSource: previous?.takeoffSource || "Current quote draft",
+          items: [...(previous?.items || items), ...takeoffItems]
+        }));
+      }
+
+      setActiveQuoteItemIndex(null);
+      showNotification(`${takeoffItems.length} material ${takeoffItems.length === 1 ? "line was" : "lines were"} added to the takeoff.`, "success");
       return;
     }
 
@@ -1601,6 +2207,11 @@ export default function ConstructionQuoteApp() {
     };
   };
 
+  const applyTakeoffMaterialRowDelete = (quoteLike: any = {}, row: any = {}) => ({
+    ...quoteLike,
+    items: (quoteLike.items || []).filter((item) => getTakeoffMaterialKey(item) !== row.key)
+  });
+
   const updateTakeoffMaterialRow = (row, draft) => {
     if (savedTakeoffQuote && isProjectLocked(savedTakeoffQuote)) {
       showNotification("Completed projects are locked and cannot be edited.", "warning");
@@ -1627,6 +2238,34 @@ export default function ConstructionQuoteApp() {
     }
 
     showNotification("Material takeoff line updated.");
+  };
+
+  const deleteTakeoffMaterialRow = (row) => {
+    if (savedTakeoffQuote && isProjectLocked(savedTakeoffQuote)) {
+      showNotification("Completed projects are locked and cannot be edited.", "warning");
+      return;
+    }
+
+    const baseQuote = selectedTakeoffQuote || { items };
+    const nextTakeoffQuote = applyTakeoffMaterialRowDelete(baseQuote, row);
+
+    setSelectedTakeoffQuoteDraft(nextTakeoffQuote);
+
+    if (selectedTakeoffQuoteId) {
+      setSavedQuotes((previous) =>
+        previous.map((quote) =>
+          quote.id === selectedTakeoffQuoteId
+            ? applyTakeoffMaterialRowDelete(quote, row)
+            : quote
+        )
+      );
+    }
+
+    if (!selectedTakeoffQuoteId || editingQuoteId === selectedTakeoffQuoteId || selectedTakeoffQuoteDraft) {
+      setItems((previous) => applyTakeoffMaterialRowDelete({ items: previous }, row).items);
+    }
+
+    showNotification("Material takeoff line deleted.");
   };
 
   const openTemplateBuilder = (templateId) => {
@@ -1718,6 +2357,7 @@ export default function ConstructionQuoteApp() {
     totals,
     schedule,
     savedContractors,
+    scheduleContractorPreferences,
     showNotification
   });
 
@@ -1770,7 +2410,8 @@ export default function ConstructionQuoteApp() {
 
     const newSchedule = assignContractorsToSchedule(
       buildScheduleFromItems(items, startDate),
-      savedContractors
+      savedContractors,
+      scheduleContractorPreferences
     );
 
     if (newSchedule[0]?.startDate) {
@@ -1821,7 +2462,7 @@ export default function ConstructionQuoteApp() {
       contractorProfile: normalizedQuoteContractorProfile,
       items,
       totals,
-      schedule: assignContractorsToSchedule(schedule, savedContractors)
+      schedule: assignContractorsToSchedule(schedule, savedContractors, scheduleContractorPreferences)
     };
 
     setSavedQuotes((previous) => {
@@ -1870,7 +2511,7 @@ export default function ConstructionQuoteApp() {
     setSchedule(normalizeScheduleItems(quote.schedule || []));
     setDismissedSaveItemKeys([]);
     setShowDraftSchedulePreview(false);
-    openQuoteBuilder();
+    openQuoteBuilder(options.page || "quotes");
   };
 
   const toggleQuoteApproval = (quoteId) => {
@@ -1995,6 +2636,7 @@ export default function ConstructionQuoteApp() {
   } = getDashboardRecords(savedQuotes, todayDate);
   const getQuoteScheduleStatus = (quote = {}) => getDashboardQuoteScheduleStatus(quote, todayDate);
   const activeDashboardDetail = dashboardDetailView ? dashboardDetailConfig[dashboardDetailView] : null;
+  const isScopeExperience = isPhoneExperience || currentPage === "scope";
 
   const renderAnalysis = () => (
     <AnalysisPage
@@ -2009,6 +2651,7 @@ export default function ConstructionQuoteApp() {
   const renderDashboard = () => (
     <DashboardHomePage
       dark={dark}
+      isPhoneExperience={isPhoneExperience}
       savedQuotes={savedQuotes}
       ongoingJobRecords={ongoingJobRecords}
       onTimeJobRecords={onTimeJobRecords}
@@ -2022,7 +2665,7 @@ export default function ConstructionQuoteApp() {
       onOpenScheduleLanding={openScheduleLanding}
       onOpenQuotesLanding={openQuotesLanding}
       onOpenPriceList={() => setCurrentPage("pricelist")}
-      onOpenContractors={() => setCurrentPage("contractor")}
+      onOpenContractors={() => isPhoneExperience ? openQuotesLanding() : setCurrentPage("contractor")}
       onOpenCustomers={() => setCurrentPage("customer")}
       onOpenApprovedQuoteSchedule={openApprovedQuoteSchedule}
       onLoadQuote={loadQuote}
@@ -2032,12 +2675,16 @@ export default function ConstructionQuoteApp() {
   const renderQuotes = () => (
     <QuoteBuilderPage
       dark={dark}
+      isPhoneExperience={isScopeExperience}
+      savedContractors={savedContractors}
+      canAssignScopeWork={canAssignScopeWork}
       isCurrentQuoteLocked={isCurrentQuoteLocked}
       currentQuoteReference={currentQuoteReference}
       activeQuoteRecord={activeQuoteRecord}
       isCurrentQuoteApproved={isCurrentQuoteApproved}
       savedCustomers={savedCustomers}
       selectedQuoteCustomerId={selectedQuoteCustomerId}
+      quoteCustomerProfile={quoteCustomerProfile}
       clientName={clientName}
       projectTitle={projectTitle}
       projectAddress={projectAddress}
@@ -2063,7 +2710,10 @@ export default function ConstructionQuoteApp() {
       deleteUnapprovedQuote={deleteUnapprovedQuote}
       setProjectTitle={setProjectTitle}
       selectQuoteCustomer={selectQuoteCustomer}
+      updateQuoteCustomerProfile={updateQuoteCustomerProfile}
       setProjectAddress={setProjectAddress}
+      onUseCurrentLocation={useScopeCurrentLocation}
+      isLocatingScopeAddress={scopeLocationLoading}
       setQuoteDate={setQuoteDate}
       setTaxRate={setTaxRate}
       setStartDate={setStartDate}
@@ -2108,10 +2758,13 @@ export default function ConstructionQuoteApp() {
       currentDraftProjectAddress={projectAddress}
       currentDraftTotal={totals.total}
       isViewingDraftSchedule={showDraftSchedulePreview}
+      canAssignContractors={canAssignScheduleContractors}
       onGenerateDraftSchedule={generateSchedule}
       onGenerateQuoteSchedule={(quote) => generateScheduleForSavedQuote(quote.id)}
       onUpdateDraftScheduleTask={updateDraftScheduleTask}
       onUpdateQuoteScheduleTask={(quote, taskIndex, field, value) => updateSavedQuoteScheduleTask(quote.id, taskIndex, field, value)}
+      onSaveDraftSchedule={saveDraftScheduleSnapshot}
+      onSaveQuoteSchedule={(quote, scheduleSnapshot) => saveQuoteScheduleSnapshot(quote.id, scheduleSnapshot)}
       onMarkDraftTaskCompleted={markDraftScheduleTaskCompleted}
       onMarkQuoteTaskCompleted={(quote, taskIndex) => markSavedQuoteScheduleTaskCompleted(quote.id, taskIndex)}
       onMarkDraftTaskInProgress={markDraftScheduleTaskInProgress}
@@ -2127,6 +2780,7 @@ export default function ConstructionQuoteApp() {
         reorderSavedQuoteScheduleTasks(quote.id, fromIndex, toIndex, scheduleSnapshot)}
       onOpenQuote={loadQuote}
       onOpenQuoteSchedule={(quote) => openApprovedQuoteSchedule(quote.id)}
+      onOpenMaterialTakeoff={(quote) => openMaterialTakeoff(quote.id)}
       onBackToLanding={openScheduleLanding}
     />
   );
@@ -2144,6 +2798,7 @@ export default function ConstructionQuoteApp() {
       onSaveTakeoffProducts={saveTakeoffProductSettings}
       onSaveMaterialsToQuote={saveTakeoffMaterialsToQuote}
       onUpdateTakeoffMaterialRow={updateTakeoffMaterialRow}
+      onDeleteTakeoffMaterialRow={deleteTakeoffMaterialRow}
     />
   );
 
@@ -2290,6 +2945,11 @@ export default function ConstructionQuoteApp() {
       onSetSavedQuotes={setSavedQuotes}
       onSetEditingQuoteId={setEditingQuoteId}
       onSetQuotesView={setQuotesView}
+      canManageAccess={canManageAccess}
+      localUserAccounts={localUserAccounts}
+      onCreateUserAccount={(account) => createUserAccount(account, { signIn: false })}
+      onUpdateUserAccount={updateUserAccount}
+      onDeleteUserAccount={deleteUserAccount}
     />
   );
 
@@ -2299,8 +2959,20 @@ export default function ConstructionQuoteApp() {
     }
   };
   const openNavigationPage = (pageId) => {
+    if (!hasPageAccess(pageId)) {
+      showNotification("Your account does not have access to that page.", "warning");
+      return;
+    }
+
+    if (isPhoneExperience && phoneRestrictedPages.has(pageId)) {
+      openQuotesLanding();
+      return;
+    }
+
     if (pageId === "quotes") {
       openQuotesLanding();
+    } else if (pageId === "scope") {
+      openScopeLanding();
     } else if (pageId === "schedule") {
       openScheduleLanding();
     } else if (pageId === "takeoff") {
@@ -2313,12 +2985,67 @@ export default function ConstructionQuoteApp() {
   };
 
   return (
+    !currentUser ? (
+      <LoginPage
+        onLogin={loginUser}
+        onCreateAccount={(account) =>
+          createUserAccount({
+            ...account,
+            role: "administrator",
+            allowedPageIds: getDefaultPageAccessForRole("administrator")
+          })}
+        allowInitialAccountSetup={localUserAccounts.length === 0}
+      />
+    ) : !firstAllowedPageId ? (
+      <main style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        padding: 24,
+        background: dark ? "#0f172a" : "#f3f4f6",
+        color: dark ? "#f9fafb" : "#111827"
+      }}>
+        <section style={{
+          width: "min(100%, 420px)",
+          padding: 24,
+          borderRadius: 8,
+          background: dark ? "#111827" : "#ffffff",
+          border: `1px solid ${dark ? "#374151" : "#e5e7eb"}`
+        }}>
+          <h1 style={{ margin: "0 0 8px", fontSize: "1.35rem" }}>No Access Assigned</h1>
+          <p style={{ margin: "0 0 18px", color: dark ? "#9ca3af" : "#6b7280", lineHeight: 1.45 }}>
+            Your account does not currently have access to any app sections. Ask an administrator to turn on the pages you need.
+          </p>
+          <button
+            type="button"
+            onClick={logoutUser}
+            style={{
+              minHeight: 42,
+              width: "100%",
+              border: 0,
+              borderRadius: 8,
+              background: "#2563eb",
+              color: "#ffffff",
+              fontWeight: 800,
+              cursor: "pointer"
+            }}
+          >
+            Sign Out
+          </button>
+        </section>
+      </main>
+    ) : (
     <AppShell
       dark={dark}
       currentPage={currentPage}
+      isPhoneExperience={isPhoneExperience}
+      showScopeNavigation={isNativeTabletExperience}
+      allowedPageIds={currentUserAllowedPageIds}
       navigationOpen={navigationOpen}
       setNavigationOpen={setNavigationOpen}
       openNavigationPage={openNavigationPage}
+      currentUser={currentUser}
+      onLogout={logoutUser}
       notification={notification}
       onDismissNotification={() => setNotification(null)}
     >
@@ -2326,10 +3053,11 @@ export default function ConstructionQuoteApp() {
       {currentPage === "analysis" && renderAnalysis()}
       {currentPage === "contractor" && renderContractor()}
       {currentPage === "customer" && renderCustomer()}
-      {currentPage === "quotes" && quotesView === "landing" && (
+      {(currentPage === "quotes" || currentPage === "scope") && quotesView === "landing" && (
         <QuotesLandingPage
           key={`${quotesCustomerFilter?.id || quotesCustomerFilter?.label || "all"}:${quotesInitialProjectList || "approved"}`}
           dark={dark}
+          isPhoneExperience={isScopeExperience}
           savedQuotes={savedQuotes}
           customerFilter={quotesCustomerFilter}
           initialProjectList={quotesInitialProjectList}
@@ -2337,8 +3065,8 @@ export default function ConstructionQuoteApp() {
             setQuotesCustomerFilter(null);
             setQuotesInitialProjectList("");
           }}
-          onNewQuote={startNewQuote}
-          onOpenQuote={loadQuote}
+          onNewQuote={isScopeExperience ? startNewScope : startNewQuote}
+          onOpenQuote={(quote, options) => loadQuote(quote, { ...options, page: isScopeExperience ? "scope" : "quotes" })}
           onOpenQuoteSchedule={(quote) => openApprovedQuoteSchedule(quote.id)}
           onOpenMaterialTakeoff={(quote) => openMaterialTakeoff(quote.id)}
           onToggleQuoteApproval={toggleQuoteApproval}
@@ -2347,7 +3075,7 @@ export default function ConstructionQuoteApp() {
           onSetQuoteProjectStatus={setQuoteProjectStatus}
         />
       )}
-      {currentPage === "quotes" && quotesView === "builder" && renderQuotes()}
+      {(currentPage === "quotes" || currentPage === "scope") && quotesView === "builder" && renderQuotes()}
       {currentPage === "schedule" && renderSchedule()}
       {currentPage === "takeoff" && renderTakeoff()}
       {currentPage === "pricelist" && renderPriceList()}
@@ -2355,5 +3083,6 @@ export default function ConstructionQuoteApp() {
       {currentPage === "settings" && renderSettings()}
 
     </AppShell>
+    )
   );
 }

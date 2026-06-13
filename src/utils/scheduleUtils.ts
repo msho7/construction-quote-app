@@ -20,6 +20,13 @@ export const TASK_TRADE_MATCHERS = [
 ];
 export const getTaskSearchText = (task: any = {}) =>
   [task.name, task.category, task.roomName, task.unit].map((value) => String(value || "").toLowerCase()).join(" ");
+export const getScheduleContractorPreferenceKey = (task: any = {}) =>
+  [
+    task.name,
+    task.category,
+    task.roomName,
+    task.unit
+  ].map((value) => String(value || "").trim().toLowerCase()).join("|");
 export const getSuggestedTradeForTask = (task: any = {}) => {
   const taskText = getTaskSearchText(task);
   const match = TASK_TRADE_MATCHERS.find(({ keywords }) =>
@@ -81,7 +88,7 @@ export const addContractorBooking = (contractorId, taskRange, contractorBookings
     taskRange
   ]);
 };
-export const assignContractorsToSchedule = (scheduleItems = [], contractors: any[] = []) => {
+export const assignContractorsToSchedule = (scheduleItems = [], contractors: any[] = [], contractorPreferences: Record<string, string> = {}) => {
   const activeContractors = contractors.filter((contractor) => contractor.status !== "inactive");
   const assignmentCounts = new Map();
   const contractorBookings = new Map();
@@ -89,6 +96,8 @@ export const assignContractorsToSchedule = (scheduleItems = [], contractors: any
   return normalizeScheduleItems(scheduleItems).map((task) => {
     const suggestedTrade = getSuggestedTradeForTask(task);
     const taskRange = getTaskAssignmentRange(task);
+    const preferredContractorId = contractorPreferences[getScheduleContractorPreferenceKey(task)] || "";
+    const preferredContractor = activeContractors.find((contractor) => contractor.id && contractor.id === preferredContractorId);
     const existingAssignedContractor = activeContractors.find((contractor) => contractor.id && contractor.id === task.assignedContractorId);
     const matchingContractors = activeContractors.filter((contractor) => canContractorDoTrade(contractor, suggestedTrade));
     const getSortedContractors = (contractorOptions: any[] = []) =>
@@ -120,6 +129,25 @@ export const assignContractorsToSchedule = (scheduleItems = [], contractors: any
         assignedContractorId: existingAssignedContractor.id || "",
         assignedContractorName: getContractorDisplayName(existingAssignedContractor),
         assignedContractorTrade: existingAssignedContractor.trade || suggestedTrade
+      };
+    }
+
+    if (
+      preferredContractor &&
+      !getContractorHasDateConflict(preferredContractor.id, taskRange, contractorBookings)
+    ) {
+      assignmentCounts.set(
+        preferredContractor.id,
+        (assignmentCounts.get(preferredContractor.id) || 0) + 1
+      );
+      addContractorBooking(preferredContractor.id, taskRange, contractorBookings);
+
+      return {
+        ...task,
+        suggestedTrade,
+        assignedContractorId: preferredContractor.id || "",
+        assignedContractorName: getContractorDisplayName(preferredContractor),
+        assignedContractorTrade: preferredContractor.trade || suggestedTrade
       };
     }
 

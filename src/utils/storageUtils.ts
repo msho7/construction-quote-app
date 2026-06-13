@@ -14,6 +14,7 @@ export const APP_STATE_KEYS = [
   "savedQuotes",
   "savedRoomTemplates",
   "savedTakeoffProducts",
+  "scheduleContractorPreferences",
   "themeMode"
 ];
 

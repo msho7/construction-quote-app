@@ -24,6 +24,14 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Construction Quote uses the camera to attach jobsite photos to scope lines.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Construction Quote uses photo library access so you can select jobsite photos for scope lines.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Construction Quote may save jobsite photos that are attached to scope lines.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Construction Quote uses your precise location to fill the jobsite address on scope lines.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

@@ -6,12 +6,16 @@ import QuoteItemsTable from "./QuoteItemsTable";
 
 export default function QuoteBuilderPage({
   dark,
+  isPhoneExperience = false,
+  savedContractors = [],
+  canAssignScopeWork = false,
   isCurrentQuoteLocked,
   currentQuoteReference,
   activeQuoteRecord,
   isCurrentQuoteApproved,
   savedCustomers,
   selectedQuoteCustomerId,
+  quoteCustomerProfile,
   clientName,
   projectTitle,
   projectAddress,
@@ -37,7 +41,10 @@ export default function QuoteBuilderPage({
   deleteUnapprovedQuote,
   setProjectTitle,
   selectQuoteCustomer,
+  updateQuoteCustomerProfile,
   setProjectAddress,
+  onUseCurrentLocation,
+  isLocatingScopeAddress = false,
   setQuoteDate,
   setTaxRate,
   setStartDate,
@@ -65,6 +72,8 @@ export default function QuoteBuilderPage({
   setExportFormat,
   submitExport
 }: any) {
+  const showNewCustomerDetails = !selectedQuoteCustomerId;
+
   return (
     <>
       <Card dark={dark}>
@@ -74,7 +83,9 @@ export default function QuoteBuilderPage({
             <p className="row-subtitle">
               {isCurrentQuoteLocked
                 ? "This project is complete, so it is locked for editing."
-                : "Use a template for repeat jobs like bathrooms, then add custom items if needed."}
+                : isPhoneExperience
+                  ? "Capture field scope, work lines, photos, and assignments."
+                  : "Use a template for repeat jobs like bathrooms, then add custom items if needed."}
             </p>
             {currentQuoteReference ? (
               <div className="quote-reference-line">
@@ -92,6 +103,7 @@ export default function QuoteBuilderPage({
               </Button>
             ) : null}
             <Button
+              className="desktop-only-action"
               variant="secondary"
               onClick={() => openMaterialTakeoff(activeQuoteRecord?.id || null, getCurrentQuoteTakeoffPayload())}
             >
@@ -125,11 +137,9 @@ export default function QuoteBuilderPage({
             <Select
               value={selectedQuoteCustomerId}
               onChange={(e) => selectQuoteCustomer(e.target.value)}
-              disabled={isCurrentQuoteLocked || (!savedCustomers.length && !selectedQuoteCustomerId)}
+              disabled={isCurrentQuoteLocked}
             >
-              <option value="">
-                {savedCustomers.length ? "Select saved customer" : "No saved customers yet"}
-              </option>
+              <option value="">New customer</option>
               {selectedQuoteCustomerId && !savedCustomers.some((customer) => customer.id === selectedQuoteCustomerId) && clientName ? (
                 <option value={selectedQuoteCustomerId}>{clientName} (Saved On Quote)</option>
               ) : null}
@@ -148,6 +158,15 @@ export default function QuoteBuilderPage({
               disabled={isCurrentQuoteLocked}
               onChange={(e) => setProjectAddress(e.target.value)}
             />
+            {isPhoneExperience && !isCurrentQuoteLocked ? (
+              <Button
+                variant="secondary"
+                onClick={onUseCurrentLocation}
+                disabled={isLocatingScopeAddress}
+              >
+                {isLocatingScopeAddress ? "Finding Location..." : "Use Current Location"}
+              </Button>
+            ) : null}
           </label>
           <label>
             Quote Date
@@ -180,6 +199,98 @@ export default function QuoteBuilderPage({
           </label>
           
         </div>
+
+        {showNewCustomerDetails ? (
+        <div className="quote-customer-panel">
+          <div className="quote-customer-panel-header">
+            <h4>Customer Details</h4>
+          </div>
+          <div className="grid three-col">
+            <label>
+              Customer Name
+              <Input
+                placeholder="Customer Name"
+                value={quoteCustomerProfile?.customerName || ""}
+                disabled={isCurrentQuoteLocked}
+                onChange={(e) => updateQuoteCustomerProfile("customerName", e.target.value)}
+              />
+            </label>
+            <label>
+              Company Name
+              <Input
+                placeholder="Company Name"
+                value={quoteCustomerProfile?.companyName || ""}
+                disabled={isCurrentQuoteLocked}
+                onChange={(e) => updateQuoteCustomerProfile("companyName", e.target.value)}
+              />
+            </label>
+            <label>
+              Phone
+              <Input
+                placeholder="Phone"
+                value={quoteCustomerProfile?.phone || ""}
+                disabled={isCurrentQuoteLocked}
+                onChange={(e) => updateQuoteCustomerProfile("phone", e.target.value)}
+              />
+            </label>
+            <label>
+              Email
+              <Input
+                type="email"
+                placeholder="Email"
+                value={quoteCustomerProfile?.email || ""}
+                disabled={isCurrentQuoteLocked}
+                onChange={(e) => updateQuoteCustomerProfile("email", e.target.value)}
+              />
+            </label>
+            <label>
+              Street Address
+              <Input
+                placeholder="Street Address"
+                value={quoteCustomerProfile?.address || ""}
+                disabled={isCurrentQuoteLocked}
+                onChange={(e) => updateQuoteCustomerProfile("address", e.target.value)}
+              />
+            </label>
+            <label>
+              Unit
+              <Input
+                placeholder="Unit"
+                value={quoteCustomerProfile?.unitNumber || ""}
+                disabled={isCurrentQuoteLocked}
+                onChange={(e) => updateQuoteCustomerProfile("unitNumber", e.target.value)}
+              />
+            </label>
+            <label>
+              City
+              <Input
+                placeholder="City"
+                value={quoteCustomerProfile?.city || ""}
+                disabled={isCurrentQuoteLocked}
+                onChange={(e) => updateQuoteCustomerProfile("city", e.target.value)}
+              />
+            </label>
+            <label>
+              Province / State
+              <Input
+                placeholder="Province / State"
+                value={quoteCustomerProfile?.province || ""}
+                disabled={isCurrentQuoteLocked}
+                onChange={(e) => updateQuoteCustomerProfile("province", e.target.value)}
+              />
+            </label>
+            <label>
+              Postal / ZIP Code
+              <Input
+                placeholder="Postal / ZIP Code"
+                value={quoteCustomerProfile?.postalCode || ""}
+                disabled={isCurrentQuoteLocked}
+                onChange={(e) => updateQuoteCustomerProfile("postalCode", e.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+        ) : null}
       </Card>
 
       {showTemplateBuilder && !isCurrentQuoteLocked && (
@@ -255,8 +366,11 @@ export default function QuoteBuilderPage({
         <>
           <QuoteItemsTable
             dark={dark}
+            isPhoneExperience={isPhoneExperience}
             items={items}
             priceList={priceList}
+            savedContractors={savedContractors}
+            canAssignScopeWork={canAssignScopeWork}
             projectTemplates={[]}
             onAddItem={addItem}
             onAddRoom={addRoom}
@@ -276,6 +390,7 @@ export default function QuoteBuilderPage({
             onRemoveItem={removeItem}
           />
 
+          {!isPhoneExperience ? (
           <Card dark={dark}>
             <div className="section-header">
               <div>
@@ -301,9 +416,11 @@ export default function QuoteBuilderPage({
               <p className="row-subtitle room-template-empty-note">Save a room above and it will appear here as a reusable template button.</p>
             ) : null}
           </Card>
+          ) : null}
         </>
       )}
 
+      {!isPhoneExperience ? (
       <Card dark={dark}>
         <h3>Quote Totals</h3>
         <div className="totals-list">
@@ -313,6 +430,7 @@ export default function QuoteBuilderPage({
           <div className="grand-total"><span>Total</span><strong>{formatMoney(totals.total)}</strong></div>
         </div>
       </Card>
+      ) : null}
 
       <Card dark={dark} className="quote-actions-card">
         <div className="section-header quote-actions-header">
@@ -321,7 +439,9 @@ export default function QuoteBuilderPage({
             <p className="row-subtitle">
               {isCurrentQuoteLocked
                 ? "This completed project can be exported, but it cannot be edited."
-                : "Save this quote to keep it in the app, or export it as a file to share with your customer."}
+                : isPhoneExperience
+                  ? "Save this scope so the office can price, schedule, or assign it later."
+                  : "Save this quote to keep it in the app, or export it as a file to share with your customer."}
             </p>
           </div>
           <div className="button-row">
@@ -333,7 +453,9 @@ export default function QuoteBuilderPage({
                 Delete Quote
               </Button>
             ) : null}
-            <Button variant="secondary" onClick={openExportModal}>📤 Export Quote</Button>
+            {!isPhoneExperience ? (
+              <Button variant="secondary" onClick={openExportModal}>📤 Export Quote</Button>
+            ) : null}
           </div>
         </div>
       </Card>

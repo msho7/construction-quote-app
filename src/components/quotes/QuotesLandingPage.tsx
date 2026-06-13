@@ -104,6 +104,7 @@ const PROJECT_LIST_OPTIONS = [
 
 export default function QuotesLandingPage({
   dark,
+  isPhoneExperience = false,
   savedQuotes,
   customerFilter,
   initialProjectList,
@@ -175,11 +176,13 @@ export default function QuotesLandingPage({
       return (
         <>
           <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
-            Edit Quote
+            {isPhoneExperience ? "Open Scope" : "Edit Quote"}
           </Button>
+          {!isPhoneExperience ? (
           <Button variant="secondary" onClick={() => onOpenMaterialTakeoff?.(quote)}>
             Material Takeoff
           </Button>
+          ) : null}
           <Button variant="secondary" onClick={() => onToggleQuoteApproval(quote.id)}>
             Mark In Progress
           </Button>
@@ -191,11 +194,13 @@ export default function QuotesLandingPage({
       return (
         <>
           <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
-            Edit Quote
+            {isPhoneExperience ? "Open Scope" : "Edit Quote"}
           </Button>
+          {!isPhoneExperience ? (
           <Button variant="secondary" onClick={() => onOpenMaterialTakeoff?.(quote)}>
             Material Takeoff
           </Button>
+          ) : null}
           <Button variant="secondary" onClick={() => onToggleQuoteApproval(quote.id)}>
             Mark In Progress
           </Button>
@@ -207,7 +212,7 @@ export default function QuotesLandingPage({
       return (
         <>
           <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
-            Edit Quote
+            {isPhoneExperience ? "Open Scope" : "Edit Quote"}
           </Button>
           <Button variant="secondary" onClick={() => onSetQuoteProjectStatus?.(quote.id, "completed")}>
             Mark Completed
@@ -239,8 +244,8 @@ export default function QuotesLandingPage({
 
     return (
       <>
-        <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
-          Edit Quote
+          <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
+          {isPhoneExperience ? "Open Scope" : "Edit Quote"}
         </Button>
         <Button variant="secondary" onClick={() => onToggleQuoteApproval(quote.id)}>
           Mark In Progress
@@ -271,7 +276,7 @@ export default function QuotesLandingPage({
 
         <div className="quote-overview-side">
           <div className="quote-overview-total">
-            {formatMoney(quote.totals?.total || 0)}
+            {isPhoneExperience ? getStatusLabel(status) : formatMoney(quote.totals?.total || 0)}
           </div>
           <div className="button-row quote-overview-actions">
             {renderProjectActions(quote, status)}
@@ -286,11 +291,13 @@ export default function QuotesLandingPage({
       <Card dark={dark}>
         <div className="section-header">
           <div>
-            <h3>Quotes Overview</h3>
+            <h3>{isPhoneExperience ? "Scope Overview" : "Quotes Overview"}</h3>
             <p className="row-subtitle">
               {customerFilter?.label
                 ? `Showing quotes for ${customerFilter.label}.`
-                : "Review quote activity, monitor totals, and jump into a new quote when you are ready."}
+                : isPhoneExperience
+                  ? "Capture field scope, review assigned work, and keep customer work moving."
+                  : "Review quote activity, monitor totals, and jump into a new quote when you are ready."}
             </p>
           </div>
           <div className="button-row">
@@ -299,7 +306,7 @@ export default function QuotesLandingPage({
                 Show All Quotes
               </Button>
             ) : null}
-            <Button onClick={onNewQuote}>+ New Quote</Button>
+            <Button onClick={onNewQuote}>{isPhoneExperience ? "+ New Scope" : "+ New Quote"}</Button>
           </div>
         </div>
 
@@ -313,6 +320,7 @@ export default function QuotesLandingPage({
         </label>
       </Card>
 
+      {!isPhoneExperience ? (
       <div className="stats-grid">
         <Card dark={dark}>
           <div className="stat-label">Quotes In Progress</div>
@@ -334,13 +342,16 @@ export default function QuotesLandingPage({
           <div className="stat-value">{formatMoney(quoteAverage)}</div>
         </Card>
       </div>
+      ) : null}
 
       <Card dark={dark}>
         <div className="section-header">
           <div>
-            <h3>Quotes In Progress</h3>
+            <h3>{isPhoneExperience ? "Scopes In Progress" : "Quotes In Progress"}</h3>
             <p className="row-subtitle">
-              Review saved quotes that are still being worked on, then continue editing or mark them approved.
+              {isPhoneExperience
+                ? "Review field scopes and continue adding work lines or photos."
+                : "Review saved quotes that are still being worked on, then continue editing or mark them approved."}
             </p>
           </div>
         </div>
@@ -348,7 +359,7 @@ export default function QuotesLandingPage({
         {quotesInProgress.length === 0 ? (
           <div className="quotes-empty-state">
             <p>{normalizedCustomerSearchTerm ? "No in-progress quotes match that customer search." : "No quotes in progress yet."}</p>
-            <Button onClick={onNewQuote}>New Quote</Button>
+            <Button onClick={onNewQuote}>{isPhoneExperience ? "New Scope" : "New Quote"}</Button>
           </div>
         ) : (
           <div className="list-table">
@@ -368,11 +379,11 @@ export default function QuotesLandingPage({
 
                 <div className="quote-overview-side">
                   <div className="quote-overview-total">
-                    {formatMoney(quote.totals?.total || 0)}
+                    {isPhoneExperience ? "Scope" : formatMoney(quote.totals?.total || 0)}
                   </div>
                   <div className="button-row quote-overview-actions">
                     <Button variant="secondary" onClick={() => onOpenQuote(quote)}>
-                      Continue Quote
+                      {isPhoneExperience ? "Continue Scope" : "Continue Quote"}
                     </Button>
                     <Button
                       variant="secondary"

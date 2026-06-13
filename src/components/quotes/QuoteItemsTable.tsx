@@ -5,8 +5,11 @@ import QuoteItemRow from "./QuoteItemRow";
 
 type QuoteItemsTableProps = {
   dark: boolean;
+  isPhoneExperience?: boolean;
   items: QuoteItem[];
   priceList: PriceListItem[];
+  savedContractors?: any[];
+  canAssignScopeWork?: boolean;
   projectTemplates: TemplateOption[];
   onAddItem: () => void;
   onAddRoom: () => void;
@@ -28,6 +31,7 @@ type QuoteItemsTableProps = {
 
 export default function QuoteItemsTable({
   dark,
+  isPhoneExperience = false,
   items,
   priceList,
   projectTemplates,
@@ -57,12 +61,19 @@ export default function QuoteItemsTable({
   return (
     <Card dark={dark}>
       <div className="section-header">
-        <h3>Quote Items</h3>
+        <div>
+          <h3>{isPhoneExperience ? "Scope Lines" : "Quote Items"}</h3>
+          {isPhoneExperience ? (
+            <p className="row-subtitle">Add work needed, attach photos, and save scope details without showing prices.</p>
+          ) : null}
+        </div>
         <div className="button-row">
-          <Button onClick={onAddItem}>Add Item</Button>
-          <Button variant="secondary" onClick={onGenerateSchedule}>📅 Generate Schedule</Button>
-          <Button variant="secondary" onClick={onSaveQuote}>💾 Save Quote</Button>
-          {onExportQuote ? (
+          <Button onClick={onAddItem}>{isPhoneExperience ? "New Line" : "Add Item"}</Button>
+          {!isPhoneExperience ? (
+            <Button variant="secondary" onClick={onGenerateSchedule}>📅 Generate Schedule</Button>
+          ) : null}
+          <Button variant="secondary" onClick={onSaveQuote}>{isPhoneExperience ? "Save Scope" : "💾 Save Quote"}</Button>
+          {onExportQuote && !isPhoneExperience ? (
             <Button variant="secondary" onClick={onExportQuote}>📤 Export Quote</Button>
           ) : null}
         </div>
@@ -88,16 +99,18 @@ export default function QuoteItemsTable({
                 ) : null}
               </div>
 
-              <div className="quote-header-row room-section-header">
-                <div>Item</div>
-                <div>Qty</div>
-                <div>Unit</div>
-                <div>Category</div>
-                <div>Price</div>
-                <div>Markup</div>
-                <div>Total</div>
-                <div>Actions</div>
-              </div>
+              {!isPhoneExperience ? (
+                <div className="quote-header-row room-section-header">
+                  <div>Item</div>
+                  <div>Qty</div>
+                  <div>Unit</div>
+                  <div>Category</div>
+                  <div>Price</div>
+                  <div>Markup</div>
+                  <div>Total</div>
+                  <div>Actions</div>
+                </div>
+              ) : null}
             </>
           ) : null}
 
@@ -105,6 +118,7 @@ export default function QuoteItemsTable({
             item={item}
             index={index}
             priceList={priceList}
+            isPhoneExperience={isPhoneExperience}
             onUpdateItem={onUpdateItem}
             onSelectPriceItem={onSelectPriceItem}
             isSavedPriceListItem={isSavedPriceListItem}
@@ -121,21 +135,25 @@ export default function QuoteItemsTable({
 
       <div className="quote-items-footer">
         <div className="button-row">
-          <Button onClick={onAddItem}>Add Item</Button>
-          <Button variant="secondary" onClick={onAddRoom}>Add Another Room</Button>
+          <Button onClick={onAddItem}>{isPhoneExperience ? "New Line" : "Add Item"}</Button>
+          {!isPhoneExperience ? (
+            <Button variant="secondary" onClick={onAddRoom}>Add Another Room</Button>
+          ) : null}
         </div>
-        <div className="button-stack compact quote-template-actions">
-          <Button variant="secondary" onClick={onSaveQuote}>💾 Save Quote</Button>
-          {projectTemplates.map((template) => (
-            <Button
-              key={template.id}
-              variant="secondary"
-              onClick={() => onOpenTemplateBuilder(template.id)}
-            >
-              {template.label} Template
-            </Button>
-          ))}
-        </div>
+        {!isPhoneExperience ? (
+          <div className="button-stack compact quote-template-actions">
+            <Button variant="secondary" onClick={onSaveQuote}>💾 Save Quote</Button>
+            {projectTemplates.map((template) => (
+              <Button
+                key={template.id}
+                variant="secondary"
+                onClick={() => onOpenTemplateBuilder(template.id)}
+              >
+                {template.label} Template
+              </Button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </Card>
   );

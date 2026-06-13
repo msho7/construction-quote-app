@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Card, Button, Input } from "../ui";
+import { Card, Button, Input, Select } from "../ui";
 import BusinessDatePicker from "./BusinessDatePicker";
 import {
   addDaysToDate,
@@ -26,10 +26,13 @@ type SchedulePageProps = {
   currentDraftProjectAddress?: string;
   currentDraftTotal?: number;
   isViewingDraftSchedule?: boolean;
+  canAssignContractors?: boolean;
   onGenerateDraftSchedule?: () => void;
   onGenerateQuoteSchedule?: (quote: SavedQuote) => void;
   onUpdateDraftScheduleTask?: (taskIndex: number, field: "startDate" | "duration", value: string) => void;
   onUpdateQuoteScheduleTask?: (quote: SavedQuote, taskIndex: number, field: "startDate" | "duration", value: string) => void;
+  onSaveDraftSchedule?: (scheduleSnapshot: ScheduleItem[]) => void;
+  onSaveQuoteSchedule?: (quote: SavedQuote, scheduleSnapshot: ScheduleItem[]) => void;
   onMarkDraftTaskCompleted?: (taskIndex: number) => void;
   onMarkQuoteTaskCompleted?: (quote: SavedQuote, taskIndex: number) => void;
   onMarkDraftTaskInProgress?: (taskIndex: number) => void;
@@ -42,6 +45,7 @@ type SchedulePageProps = {
   onReorderQuoteScheduleTasks?: (quote: SavedQuote, fromIndex: number, toIndex: number, scheduleSnapshot: ScheduleItem[]) => void;
   onOpenQuote?: (quote: SavedQuote) => void;
   onOpenQuoteSchedule?: (quote: SavedQuote) => void;
+  onOpenMaterialTakeoff?: (quote: SavedQuote) => void;
   onBackToLanding?: () => void;
 };
 
@@ -172,8 +176,13 @@ export default function SchedulePage({
   currentDraftProjectAddress = "",
   currentDraftTotal = 0,
   isViewingDraftSchedule = false,
+  canAssignContractors = false,
+  onGenerateDraftSchedule,
+  onGenerateQuoteSchedule,
   onUpdateDraftScheduleTask,
   onUpdateQuoteScheduleTask,
+  onSaveDraftSchedule,
+  onSaveQuoteSchedule,
   onMarkDraftTaskCompleted,
   onMarkQuoteTaskCompleted,
   onMarkDraftTaskInProgress,
@@ -186,6 +195,7 @@ export default function SchedulePage({
   onReorderQuoteScheduleTasks,
   onOpenQuote,
   onOpenQuoteSchedule,
+  onOpenMaterialTakeoff,
   onBackToLanding
 }: SchedulePageProps) {
   const [pendingTaskEdits, setPendingTaskEdits] = useState<Record<number, PendingTaskEdit>>({});
@@ -195,6 +205,8 @@ export default function SchedulePage({
   const [isEditingScheduleStartDate, setIsEditingScheduleStartDate] = useState(false);
   const [pendingScheduleStartDate, setPendingScheduleStartDate] = useState("");
   const [openContractorPickerTaskIndex, setOpenContractorPickerTaskIndex] = useState<number | null>(null);
+  const [selectedTaskIndexes, setSelectedTaskIndexes] = useState<number[]>([]);
+  const [bulkContractorId, setBulkContractorId] = useState("");
 
   const today = toDateInputValue(new Date().toISOString().slice(0, 10));
 
@@ -295,6 +307,8 @@ export default function SchedulePage({
   useEffect(() => {
     setDraggedTaskIndex(null);
     setDragOverTaskIndex(null);
+    setSelectedTaskIndexes([]);
+    setBulkContractorId("");
   }, [shouldShowDraftDetail, selectedQuoteSchedule?.id, scheduleItems]);
 
   useEffect(() => {
@@ -517,6 +531,30 @@ export default function SchedulePage({
     setOpenContractorPickerTaskIndex(null);
   };
 
+  const toggleTaskSelection = (taskIndex: number) => {
+    setSelectedTaskIndexes((previous) =>
+      previous.includes(taskIndex)
+        ? previous.filter((index) => index !== taskIndex)
+        : [...previous, taskIndex].sort((left, right) => left - right)
+    );
+  };
+
+  const toggleAllTaskSelection = () => {
+    setSelectedTaskIndexes((previous) =>
+      previous.length === scheduleItems.length
+        ? []
+        : scheduleItems.map((_, index) => index)
+    );
+  };
+
+  const assignSelectedTasksContractor = () => {
+    if (!bulkContractorId || !selectedTaskIndexes.length) return;
+
+    selectedTaskIndexes.forEach((taskIndex) => assignTaskContractor(taskIndex, bulkContractorId));
+    setSelectedTaskIndexes([]);
+    setBulkContractorId("");
+  };
+
   const applyScheduleStartDateUpdate = () => {
     const nextStartDate = clampStartDate(pendingScheduleStartDate);
     if (!nextStartDate || !editableScheduleItems.length) return;
@@ -534,6 +572,49 @@ export default function SchedulePage({
   const selectedQuoteScheduleStatus = selectedQuoteSchedule ? getScheduleStatus(selectedQuoteSchedule) : null;
   const isSelectedQuoteLocked =
     !shouldShowDraftDetail && ["completed", "invoiced"].includes(selectedQuoteSchedule?.status || "");
+  const canSaveCurrentSchedule =
+    !isSelectedQuoteLocked &&
+    scheduleItems.length > 0 &&
+    (
+      (shouldShowDraftDetail && Boolean(onSaveDraftSchedule)) ||
+      (Boolean(selectedQuoteSchedule) && Boolean(onSaveQuoteSchedule))
+    );
+  const canGenerateCurrentSchedule =
+    !isSelectedQuoteLocked &&
+    (
+      (shouldShowDraftDetail && Boolean(onGenerateDraftSchedule)) ||
+      (Boolean(selectedQuoteSchedule) && Boolean(onGenerateQuoteSchedule))
+    );
+  const activeContractors = savedContractors.filter((contractor) => contractor.status !== "inactive");
+  const canBulkAssignContractor =
+    canAssignContractors &&
+    !isSelectedQuoteLocked &&
+    scheduleItems.length > 0 &&
+    activeContractors.length > 0 &&
+    (onAssignDraftTaskContractor || onAssignQuoteTaskContractor);
+
+  const generateCurrentSchedule = () => {
+    if (shouldShowDraftDetail) {
+      onGenerateDraftSchedule?.();
+      return;
+    }
+
+    if (selectedQuoteSchedule) {
+      onGenerateQuoteSchedule?.(selectedQuoteSchedule);
+    }
+  };
+
+  const saveCurrentSchedule = () => {
+    if (shouldShowDraftDetail) {
+      onSaveDraftSchedule?.(editableScheduleItems);
+    } else if (selectedQuoteSchedule) {
+      onSaveQuoteSchedule?.(selectedQuoteSchedule, editableScheduleItems);
+    }
+
+    setPendingTaskEdits({});
+    setIsEditingScheduleStartDate(false);
+    setPendingScheduleStartDate(currentScheduleStartDate);
+  };
 
   if (selectedQuoteSchedule || shouldShowDraftDetail) {
     return (
@@ -556,6 +637,14 @@ export default function SchedulePage({
             </div>
 
             <div className="button-row">
+              {canSaveCurrentSchedule ? (
+                <Button onClick={saveCurrentSchedule}>Save Schedule</Button>
+              ) : null}
+              {selectedQuoteSchedule && onOpenMaterialTakeoff ? (
+                <Button variant="secondary" onClick={() => onOpenMaterialTakeoff(selectedQuoteSchedule)}>
+                  Material Takeoff
+                </Button>
+              ) : null}
               {onBackToLanding ? (
                 <Button variant="secondary" onClick={onBackToLanding}>
                   Back To Schedules
@@ -647,11 +736,42 @@ export default function SchedulePage({
                 {getScheduleCountLabel(scheduleItems)} • Drag a task title up or down to reorder the schedule.
               </div>
             </div>
-
+            {canBulkAssignContractor ? (
+              <div className="schedule-bulk-actions">
+                <Button variant="secondary" onClick={toggleAllTaskSelection}>
+                  {selectedTaskIndexes.length === scheduleItems.length ? "Clear Selection" : "Select All"}
+                </Button>
+                <Select
+                  value={bulkContractorId}
+                  onChange={(event) => setBulkContractorId(event.target.value)}
+                  disabled={!selectedTaskIndexes.length}
+                >
+                  <option value="">
+                    {selectedTaskIndexes.length ? "Select contractor" : "Select jobs first"}
+                  </option>
+                  {activeContractors.map((contractor) => (
+                    <option key={contractor.id || getContractorDisplayName(contractor)} value={contractor.id || ""}>
+                      {getContractorDisplayName(contractor)}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  onClick={assignSelectedTasksContractor}
+                  disabled={!selectedTaskIndexes.length || !bulkContractorId}
+                >
+                  Assign Selected
+                </Button>
+              </div>
+            ) : null}
           </div>
 
           {scheduleItems.length === 0 ? (
-            <p>No schedule has been generated for this quote yet.</p>
+            <div className="quotes-empty-state">
+              <p>No schedule has been generated for this quote yet.</p>
+              {canGenerateCurrentSchedule ? (
+                <Button onClick={generateCurrentSchedule}>Generate Schedule</Button>
+              ) : null}
+            </div>
           ) : (
             <div className="schedule-list">
               {scheduleItems.map((task, index) => {
@@ -673,13 +793,17 @@ export default function SchedulePage({
                     contractor.status !== "inactive" &&
                     !matchingContractors.some((matchingContractor) => matchingContractor.id === contractor.id)
                 );
-                const canAssignContractor = !isSelectedQuoteLocked && (onAssignDraftTaskContractor || onAssignQuoteTaskContractor);
+                const canAssignContractor =
+                  canAssignContractors &&
+                  !isSelectedQuoteLocked &&
+                  (onAssignDraftTaskContractor || onAssignQuoteTaskContractor);
 
                 return (
                   <div
                     key={`${task.name}-${index}`}
                     className={[
                       "schedule-card",
+                      selectedTaskIndexes.includes(index) ? "selected" : "",
                       isSelectedQuoteLocked ? "locked" : "",
                       dragOverTaskIndex === index && draggedTaskIndex !== index ? "drag-over" : "",
                       draggedTaskIndex === index ? "is-dragging" : ""
@@ -696,7 +820,17 @@ export default function SchedulePage({
                       onDragEnd={isSelectedQuoteLocked ? undefined : clearTaskDragState}
                     >
                       {!isSelectedQuoteLocked ? (
-                        <div className="schedule-drag-hint">Drag To Reorder</div>
+                        <div className="schedule-card-tool-row">
+                          <div className="schedule-drag-hint">Drag To Reorder</div>
+                          {canAssignContractor ? (
+                            <Button
+                              variant={selectedTaskIndexes.includes(index) ? "secondary" : "secondary"}
+                              onClick={() => toggleTaskSelection(index)}
+                            >
+                              {selectedTaskIndexes.includes(index) ? "Selected" : "Select"}
+                            </Button>
+                          ) : null}
+                        </div>
                       ) : null}
                       <div className="directory-title-row">
                         <div className="row-title">{task.name}</div>
@@ -721,24 +855,20 @@ export default function SchedulePage({
                               setOpenContractorPickerTaskIndex((previous) => previous === index ? null : index)
                             }
                           >
-                            {task.assignedContractorName
-                              ? task.assignedContractorName
-                              : task.suggestedTrade
-                                ? `Choose ${task.suggestedTrade} contractor`
-                                : "Choose contractor"}
+                            {task.assignedContractorName || "Select Contractor"}
                           </button>
                         ) : (
                           task.assignedContractorName
                             ? task.assignedContractorName
-                            : task.suggestedTrade
-                              ? `Suggested ${task.suggestedTrade}`
-                              : "No matching contractor"
+                            : "Select Contractor"
                         )}
                       </div>
                       {canAssignContractor && openContractorPickerTaskIndex === index ? (
                         <div className="schedule-contractor-picker">
                           <div className="schedule-contractor-picker-title">
-                            Best matches for {task.suggestedTrade || task.category || "this task"}
+                            {matchingContractors.length
+                              ? `Best matches for ${task.suggestedTrade || task.category || "this task"}`
+                              : "Select Contractor"}
                           </div>
                           <div className="schedule-contractor-option-list">
                             {matchingContractors.length ? (
@@ -1006,6 +1136,11 @@ export default function SchedulePage({
                     </div>
 
                     <div className="button-row quote-overview-actions">
+                      {!quote.schedule?.length ? (
+                        <Button onClick={() => onGenerateQuoteSchedule?.(quote)}>
+                          Generate Schedule
+                        </Button>
+                      ) : null}
                       <Button variant="secondary" onClick={() => onOpenQuoteSchedule?.(quote)}>
                         View Schedule
                       </Button>

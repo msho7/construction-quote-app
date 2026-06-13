@@ -1,4 +1,5 @@
 import React, { Dispatch, SetStateAction } from "react";
+import { Camera } from "lucide-react";
 import { Input, Select, Button } from "../ui";
 import { PriceListItem, QuoteItem } from "../../types/appTypes";
 import { UNIT_OPTIONS } from "../../constants/appConstants";
@@ -8,6 +9,7 @@ type QuoteItemRowProps = {
   item: QuoteItem;
   index: number;
   priceList: PriceListItem[];
+  isPhoneExperience?: boolean;
   onUpdateItem: (index: number, field: keyof QuoteItem, value: string) => void;
   onSelectPriceItem: (index: number, selectedName: string) => void;
   isSavedPriceListItem: (name: string) => boolean;
@@ -24,6 +26,7 @@ export default function QuoteItemRow({
   item,
   index,
   priceList,
+  isPhoneExperience = false,
   onUpdateItem,
   onSelectPriceItem,
   isSavedPriceListItem,
@@ -48,6 +51,81 @@ export default function QuoteItemRow({
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       onUpdateItem(index, field, event.target.value);
     };
+  const updateScopePhotos = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    onUpdateItem(index, "scopePhotoCount", String(files.length));
+    onUpdateItem(index, "scopePhotoNames", files.map((file) => file.name).join(", "));
+  };
+
+  if (isPhoneExperience) {
+    return (
+      <div className={`quote-row scope${isRoomLead ? " room-start" : ""}`}>
+        <div className="scope-line-main">
+          <label>
+            Work Needed
+            <Input
+              list={`scope-price-list-options-${index}`}
+              placeholder="Type work needed or pick a suggestion"
+              value={item.name}
+              onFocus={() => onSetActiveQuoteItemIndex(index)}
+              onBlur={() => {
+                onSetActiveQuoteItemIndex((previous) => (previous === index ? null : previous));
+              }}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                const nextName = event.target.value;
+                onUpdateItem(index, "name", nextName);
+                if (isSavedPriceListItem(nextName)) {
+                  onSelectPriceItem(index, nextName);
+                }
+              }}
+            />
+            <datalist id={`scope-price-list-options-${index}`}>
+              {priceList.map((priceItem, priceIndex) => (
+                <option key={`${priceItem.name}-${priceIndex}`} value={priceItem.name}>
+                  {priceItem.name}
+                </option>
+              ))}
+            </datalist>
+          </label>
+
+          <label>
+            Size
+            <Input
+              type="text"
+              inputMode="decimal"
+              value={getNumericInputValue(item.quantity)}
+              onChange={handleTextFieldChange("quantity")}
+            />
+          </label>
+
+          <label>
+            Measurable Units
+            <Select value={item.unit} onChange={handleSelectFieldChange("unit")}>
+              {UNIT_OPTIONS.map((unitOption) => (
+                <option key={unitOption.value} value={unitOption.value}>
+                  {unitOption.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </div>
+
+        <div className="scope-line-secondary">
+          <label className="scope-photo-picker">
+            <span><Camera size={16} aria-hidden="true" /> Photos</span>
+            <input type="file" accept="image/*" capture="environment" multiple onChange={updateScopePhotos} />
+            <span className="row-subtitle">
+              {Number(item.scopePhotoCount || 0) > 0
+                ? `${item.scopePhotoCount} selected`
+                : "Take or select photos"}
+            </span>
+          </label>
+
+          <Button variant="danger" onClick={() => onRemoveItem(index)}>Delete</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`quote-row advanced${isRoomLead ? " room-start" : ""}`}>

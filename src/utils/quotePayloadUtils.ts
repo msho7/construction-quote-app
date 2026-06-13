@@ -79,6 +79,7 @@ export const getQuoteDocumentPayload = ({
   totals,
   schedule,
   savedContractors,
+  scheduleContractorPreferences = {},
   showNotification
 }) => {
   const existingQuote = editingQuoteId
@@ -130,7 +131,8 @@ export const getQuoteDocumentPayload = ({
     },
     schedule: assignContractorsToSchedule(
       schedule.filter((task) => task.name?.trim()),
-      savedContractors
+      savedContractors,
+      scheduleContractorPreferences
     )
   };
 };

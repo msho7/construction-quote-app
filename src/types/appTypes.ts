@@ -13,6 +13,10 @@ export interface QuoteItem {
   category: string;
   pricePerUnit: number;
   markupRate: number;
+  assignedContractorId?: string;
+  assignedContractorName?: string;
+  scopePhotoCount?: number;
+  scopePhotoNames?: string;
 }
 
 export interface CustomerProfile {

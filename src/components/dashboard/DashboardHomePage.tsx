@@ -1,8 +1,31 @@
 import { Button, Card } from "../ui";
 import { formatMoney, formatQuoteReferenceNumber } from "../../utils/appUtils";
 
+type DashboardHomePageProps = {
+  dark: boolean;
+  isPhoneExperience?: boolean;
+  savedQuotes: any[];
+  ongoingJobRecords: any[];
+  onTimeJobRecords: any[];
+  delayedJobRecords: any[];
+  openQuoteRecords: any[];
+  activeDashboardDetail: any;
+  getQuoteLocation: (quote: any) => string;
+  getQuoteScheduleStatus: (quote: any) => string;
+  onSetDashboardDetailView: (view: string) => void;
+  onStartNewQuote: () => void;
+  onOpenScheduleLanding: () => void;
+  onOpenQuotesLanding: () => void;
+  onOpenPriceList: () => void;
+  onOpenContractors: () => void;
+  onOpenCustomers: () => void;
+  onOpenApprovedQuoteSchedule: (quoteId: any) => void;
+  onLoadQuote: (quote: any, options?: any) => void;
+};
+
 export default function DashboardHomePage({
   dark,
+  isPhoneExperience = false,
   savedQuotes,
   ongoingJobRecords,
   onTimeJobRecords,
@@ -20,14 +43,14 @@ export default function DashboardHomePage({
   onOpenCustomers,
   onOpenApprovedQuoteSchedule,
   onLoadQuote
-}) {
+}: DashboardHomePageProps) {
   return (
     <>
       <Card dark={dark}>
         <div className="button-row landing-action-bar">
-          <Button onClick={onStartNewQuote}>New Quote</Button>
+          <Button onClick={onStartNewQuote}>{isPhoneExperience ? "New Scope" : "New Quote"}</Button>
           <Button variant="secondary" onClick={onOpenScheduleLanding}>View Schedules</Button>
-          <Button variant="secondary" onClick={onOpenQuotesLanding}>View Quotes</Button>
+          <Button variant="secondary" onClick={onOpenQuotesLanding}>{isPhoneExperience ? "View Scope" : "View Quotes"}</Button>
         </div>
       </Card>
 
@@ -115,14 +138,16 @@ export default function DashboardHomePage({
           <h3>Quick Actions</h3>
           <div className="button-stack">
             <Button variant="secondary" onClick={onOpenPriceList}>Manage Price List</Button>
-            <Button variant="secondary" onClick={onOpenContractors}>Manage Contractors</Button>
+            {!isPhoneExperience ? (
+              <Button variant="secondary" onClick={onOpenContractors}>Manage Contractors</Button>
+            ) : null}
             <Button variant="secondary" onClick={onOpenCustomers}>Manage Customers</Button>
           </div>
         </Card>
       </div>
 
       <Card dark={dark}>
-        <h3>Recent Quotes</h3>
+        <h3>{isPhoneExperience ? "Recent Scope" : "Recent Quotes"}</h3>
         {savedQuotes.length === 0 ? (
           <p>No saved quotes yet.</p>
         ) : (
@@ -135,7 +160,7 @@ export default function DashboardHomePage({
                     {formatQuoteReferenceNumber(quote)} • {quote.clientName || "No client name"}
                   </div>
                 </div>
-                <div>{formatMoney(quote.totals?.total)}</div>
+                {!isPhoneExperience ? <div>{formatMoney(quote.totals?.total)}</div> : null}
               </div>
             ))}
           </div>

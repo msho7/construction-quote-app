@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   BarChart3,
@@ -34,6 +35,11 @@ const PAGE_META = {
     title: "Quotes",
     subtitle: "Build, approve, invoice, and revisit construction estimates.",
     icon: ReceiptText
+  },
+  scope: {
+    title: "Scope",
+    subtitle: "Capture work lines, photos, and field assignments without showing pricing.",
+    icon: ClipboardList
   },
   schedule: {
     title: "Schedule",
@@ -75,15 +81,75 @@ const PAGE_META = {
 export default function AppShell({
   dark,
   currentPage,
+  isPhoneExperience = false,
+  showScopeNavigation = false,
+  allowedPageIds,
   navigationOpen,
   setNavigationOpen,
   openNavigationPage,
+  currentUser,
+  onLogout,
   notification,
   onDismissNotification,
   children
 }) {
-  const pageMeta = PAGE_META[currentPage] || PAGE_META.dashboard;
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const effectiveAllowedPageIds =
+    isPhoneExperience && allowedPageIds?.includes("scope") && !allowedPageIds.includes("quotes")
+      ? [...allowedPageIds, "quotes"]
+      : allowedPageIds;
+  const allowedPageSet = effectiveAllowedPageIds?.length ? new Set(effectiveAllowedPageIds) : null;
+  const basePageOptions = PAGE_OPTIONS
+    .filter((page) => page.id !== "scope" || showScopeNavigation)
+    .filter((page) => !allowedPageSet || allowedPageSet.has(page.id));
+  const visiblePageOptions = isPhoneExperience
+    ? basePageOptions
+        .filter((page) => !["analysis", "takeoff", "contractor"].includes(page.id))
+        .map((page) => page.id === "quotes" ? { ...page, label: "Scope" } : page)
+    : basePageOptions;
+  const pageMeta = {
+    ...(PAGE_META[currentPage] || PAGE_META.dashboard),
+    ...(isPhoneExperience && currentPage === "quotes"
+      ? {
+          title: "Scope",
+          subtitle: "Capture work lines, photos, and field assignments without showing pricing."
+        }
+      : {})
+  };
   const HeaderIcon = pageMeta.icon;
+  const userDisplayName = currentUser?.name || currentUser?.email || "User";
+  const userInitial = String(userDisplayName).trim().charAt(0).toUpperCase() || "U";
+  const userPhotoUrl = currentUser?.photoUrl || currentUser?.photo || "";
+
+  const openSettingsFromUserMenu = () => {
+    setUserMenuOpen(false);
+    openNavigationPage("settings");
+  };
+
+  const signOutFromUserMenu = () => {
+    setUserMenuOpen(false);
+    onLogout?.();
+  };
+
+  const expandCollapsedNavigation = () => {
+    if (navigationOpen) return;
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1100px)").matches) return;
+    setNavigationOpen(true);
+  };
+
+  const isDesktopCollapsedNavigation = () =>
+    !navigationOpen &&
+    (typeof window === "undefined" || !window.matchMedia("(max-width: 1100px)").matches);
+
+  const handleUserAvatarClick = () => {
+    if (isDesktopCollapsedNavigation()) {
+      setNavigationOpen(true);
+      setUserMenuOpen(true);
+      return;
+    }
+
+    setUserMenuOpen((open) => !open);
+  };
 
   return (
     <>
@@ -92,6 +158,7 @@ export default function AppShell({
         className={[
           "app-shell",
           dark ? "dark" : "",
+          isPhoneExperience ? "phone-experience" : "",
           navigationOpen ? "navigation-open" : "navigation-closed"
         ].filter(Boolean).join(" ")}
       >
@@ -123,10 +190,42 @@ export default function AppShell({
             >
               {navigationOpen ? <ChevronLeft size={18} /> : <Menu size={18} />}
             </button>
+            {currentUser ? (
+              <div className="sidebar-user-menu">
+                <button
+                  className="sidebar-user-avatar"
+                  type="button"
+                  onClick={handleUserAvatarClick}
+                  aria-label="Open user menu"
+                  aria-expanded={userMenuOpen}
+                  title={userDisplayName}
+                >
+                  {userPhotoUrl ? (
+                    <img src={userPhotoUrl} alt="" />
+                  ) : (
+                    <span>{userInitial}</span>
+                  )}
+                </button>
+                {userMenuOpen ? (
+                  <div className="sidebar-user-popover">
+                    <div className="sidebar-user-popover-header">
+                      <strong>{userDisplayName}</strong>
+                      <span>{currentUser.email}</span>
+                    </div>
+                    <button type="button" onClick={openSettingsFromUserMenu}>
+                      Settings
+                    </button>
+                    <button type="button" onClick={signOutFromUserMenu}>
+                      Sign Out
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <nav className="nav-list" aria-label="Primary navigation">
-            {PAGE_OPTIONS.map((page) => {
+            {visiblePageOptions.map((page) => {
               const Icon = PAGE_META[page.id]?.icon || ClipboardList;
               const isActive = currentPage === page.id;
 

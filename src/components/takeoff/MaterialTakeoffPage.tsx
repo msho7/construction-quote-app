@@ -255,7 +255,8 @@ export default function MaterialTakeoffPage({
   onNewTakeoff,
   onSaveTakeoffProducts,
   onSaveMaterialsToQuote,
-  onUpdateTakeoffMaterialRow
+  onUpdateTakeoffMaterialRow,
+  onDeleteTakeoffMaterialRow
 }: any) {
   const getSavedTakeoffProduct = (materialName: string) =>
     savedTakeoffProducts[getSavedProductKey(materialName)] || null;
@@ -521,6 +522,18 @@ export default function MaterialTakeoffPage({
     }));
   };
 
+  const startAddingMaterialRow = () => {
+    setEditingMaterialRowKey("new-material-row");
+    setEditingMaterialDraft(createMaterialFromPreset("Drywall", {
+      id: "edit-new-material-row",
+      name: "",
+      length: "",
+      width: "",
+      height: "",
+      pricePerUnit: ""
+    }));
+  };
+
   const updateEditingMaterialDraft = (field, value) => {
     setEditingMaterialDraft((previous) => getMaterialWithAppliedField(previous, field, value));
   };
@@ -540,6 +553,14 @@ export default function MaterialTakeoffPage({
       unit: calculatedMaterial.unit,
       pricePerUnit: calculatedMaterial.pricePerUnit
     });
+    cancelEditingMaterialRow();
+  };
+
+  const saveNewMaterialRow = () => {
+    const calculatedMaterial = getCalculatedMaterials([editingMaterialDraft])[0];
+
+    onSaveTakeoffProducts?.([calculatedMaterial]);
+    onSaveMaterialsToQuote?.([calculatedMaterial], { stayOnTakeoff: true });
     cancelEditingMaterialRow();
   };
 
@@ -760,9 +781,10 @@ export default function MaterialTakeoffPage({
             <h3>Generated Materials</h3>
             <p className="row-subtitle">Automatically grouped from material lines in the approved quote and current quote draft.</p>
           </div>
+          <Button onClick={startAddingMaterialRow}>Add Item</Button>
         </div>
 
-        {takeoffRows.length === 0 ? (
+        {takeoffRows.length === 0 && editingMaterialRowKey !== "new-material-row" ? (
           <p className="row-subtitle">No material items were found on this quote.</p>
         ) : (
           <div className="takeoff-table">
@@ -775,6 +797,121 @@ export default function MaterialTakeoffPage({
               <div>Total</div>
               <div>Actions</div>
             </div>
+            {editingMaterialRowKey === "new-material-row" ? (() => {
+              const editingMaterial = getCalculatedMaterials([editingMaterialDraft])[0];
+              const isEachMaterial = editingMaterial?.baseUnit === "each";
+              const productDimensionMode = getProductDimensionMode(editingMaterial?.productUnit);
+
+              return (
+                <div className="takeoff-generated-editor">
+                  <div className="takeoff-editor-row">
+                    <label>
+                      Material
+                      <input
+                        list="takeoff-material-options-new-row"
+                        value={editingMaterial.name}
+                        placeholder="Type or select material"
+                        onChange={(event) => updateEditingMaterialDraft("name", event.target.value)}
+                      />
+                      <datalist id="takeoff-material-options-new-row">
+                        {materialOptions.map((option: any) => (
+                          <option key={getSavedProductKey(option.name)} value={option.name} />
+                        ))}
+                      </datalist>
+                    </label>
+                    <label>
+                      Unit
+                      <select value={editingMaterial.baseUnit} onChange={(event) => updateEditingMaterialDraft("baseUnit", event.target.value)}>
+                        {MEASUREMENT_UNIT_OPTIONS.map((unit) => (
+                          <option key={unit.value} value={unit.value}>{unit.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    {isEachMaterial ? (
+                      <label>
+                        Pieces
+                        <input value={editingMaterial.length} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("length", event.target.value)} />
+                      </label>
+                    ) : (
+                      <div className="takeoff-dimension-grid">
+                        <label>
+                          L
+                          <input value={editingMaterial.length} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("length", event.target.value)} />
+                        </label>
+                        <label>
+                          W
+                          <input value={editingMaterial.width} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("width", event.target.value)} />
+                        </label>
+                        <label>
+                          H
+                          <input value={editingMaterial.height} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("height", event.target.value)} />
+                        </label>
+                      </div>
+                    )}
+                    <label>
+                      Sold By
+                      {isEachMaterial ? (
+                        <input value="Pieces" readOnly />
+                      ) : (
+                        <select value={editingMaterial.productUnit} onChange={(event) => updateEditingMaterialDraft("productUnit", event.target.value)}>
+                          {PRODUCT_UNIT_OPTIONS.map((unit) => (
+                            <option key={unit.value} value={unit.value}>{unit.label}</option>
+                          ))}
+                        </select>
+                      )}
+                    </label>
+                    {!isEachMaterial && productDimensionMode === "coverage" ? (
+                      <label>
+                        Coverage
+                        <input value={editingMaterial.productLength} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("productLength", event.target.value)} />
+                      </label>
+                    ) : null}
+                    {!isEachMaterial && productDimensionMode !== "coverage" ? (
+                      <div className="takeoff-dimension-grid">
+                        <label>
+                          Product L
+                          <input value={editingMaterial.productLength} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("productLength", event.target.value)} />
+                        </label>
+                        {productDimensionMode === "area" ? (
+                          <label>
+                            Product W
+                            <input value={editingMaterial.productWidth} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("productWidth", event.target.value)} />
+                          </label>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <label>
+                      Waste %
+                      <input value={editingMaterial.wastePercent} inputMode="decimal" placeholder="0" onChange={(event) => updateEditingMaterialDraft("wastePercent", event.target.value)} />
+                    </label>
+                    <label>
+                      Price Per {isEachMaterial ? "Pieces" : editingMaterial.productUnit || "Unit"}
+                      <input value={editingMaterial.pricePerUnit} inputMode="decimal" placeholder="0.00" onChange={(event) => updateEditingMaterialDraft("pricePerUnit", event.target.value)} />
+                    </label>
+                    <div className="takeoff-calculated-cell">
+                      <span className="stat-label">Measured</span>
+                      <strong>{editingMaterial.measuredQuantity || 0} {editingMaterial.measuredUnit}</strong>
+                      <span className="row-subtitle">
+                        {isEachMaterial
+                          ? "Sold individually"
+                          : editingMaterial.productCoverage
+                            ? `${editingMaterial.productCoverage} ${editingMaterial.measuredUnit} per ${String(editingMaterial.productUnit || "unit").replace(/s$/, "")}`
+                            : "No product size set"}
+                      </span>
+                    </div>
+                    <div className="takeoff-calculated-cell">
+                      <span className="stat-label">Order Qty</span>
+                      <strong>{editingMaterial.quantity || 0} {editingMaterial.unit}</strong>
+                      <span className="row-subtitle">{formatMoney(editingMaterial.total)}</span>
+                    </div>
+                    <div className="button-row">
+                      <Button variant="secondary" onClick={saveNewMaterialRow}>Save</Button>
+                      <Button variant="secondary" onClick={cancelEditingMaterialRow}>Cancel</Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })() : null}
             {takeoffRows.map((row) => {
               const isEditingRow = editingMaterialRowKey === row.key;
               const editingMaterial = isEditingRow
@@ -917,6 +1054,7 @@ export default function MaterialTakeoffPage({
                   <div>{formatMoney(row.total)}</div>
                   <div className="button-row">
                     <Button variant="secondary" onClick={() => startEditingMaterialRow(row)}>Edit</Button>
+                    <Button variant="danger" onClick={() => onDeleteTakeoffMaterialRow?.(row)}>Delete</Button>
                   </div>
                 </div>
               );

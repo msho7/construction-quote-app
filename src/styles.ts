@@ -210,6 +210,25 @@ export const APP_STYLES = `
   .grid.customer-address-row { grid-template-columns: minmax(0, 2fr) minmax(140px, 0.8fr); }
   .grid.contractor-rate-row { grid-template-columns: minmax(0, 1fr) minmax(140px, 0.6fr); }
   .span-two { grid-column: span 1; }
+  .quote-customer-panel {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid #e5e7eb;
+  }
+  .card.dark .quote-customer-panel {
+    border-top-color: #374151;
+  }
+  .quote-customer-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .quote-customer-panel-header h4 {
+    margin: 0;
+    font-size: 1rem;
+  }
   
  .contractor-trade-onboarding {
   border: none;
@@ -880,6 +899,82 @@ export const APP_STYLES = `
   .app-shell.dark .quote-header-row { color: #9ca3af; border-bottom-color: #374151; }
   .quote-row.advanced { padding: 12px 0; border-bottom: 1px solid #f3f4f6; }
   .app-shell.dark .quote-row.advanced { border-bottom-color: #1f2937; }
+  .quote-row.scope {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .app-shell.dark .quote-row.scope {
+    border-bottom-color: #1f2937;
+  }
+  .scope-line-main,
+  .scope-line-secondary {
+    display: grid;
+    grid-template-columns: minmax(0, 1.8fr) minmax(90px, 0.7fr) minmax(110px, 0.8fr);
+    gap: 10px;
+    align-items: end;
+  }
+  .scope-line-secondary {
+    grid-template-columns: minmax(120px, 1fr) minmax(150px, 1.1fr) minmax(130px, 1fr) auto;
+  }
+  .scope-line-main label,
+  .scope-line-secondary label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    color: #4b5563;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+  .app-shell.dark .scope-line-main label,
+  .app-shell.dark .scope-line-secondary label {
+    color: #d1d5db;
+  }
+  .scope-photo-picker {
+    position: relative;
+    min-height: 42px;
+    justify-content: center;
+    padding: 8px 10px;
+    border: 1px dashed #94a3b8;
+    border-radius: 8px;
+    background: #f8fafc;
+    cursor: pointer;
+  }
+  .scope-photo-picker > span:first-child {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #111827;
+  }
+  .scope-photo-picker input {
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    position: absolute;
+    pointer-events: none;
+  }
+  .scope-assignment-readonly {
+    display: flex;
+    min-height: 42px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+  }
+  .scope-assignment-readonly strong {
+    color: #111827;
+    font-size: 0.95rem;
+  }
+  .app-shell.dark .scope-photo-picker {
+    border-color: #475569;
+    background: #111827;
+  }
+  .app-shell.dark .scope-photo-picker > span:first-child,
+  .app-shell.dark .scope-assignment-readonly strong {
+    color: #f9fafb;
+  }
   .room-name-row {
     display: grid;
     grid-template-columns: 2.2fr 0.8fr 1fr 1fr 1fr 0.9fr 1fr auto;
@@ -1274,7 +1369,16 @@ export const APP_STYLES = `
   }
 
   .schedule-card { padding: 14px; border: 1px solid #e5e7eb; border-radius: 12px; }
+  .schedule-card.selected {
+    border-color: #2563eb;
+    background: #eff6ff;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+  }
   .app-shell.dark .schedule-card { border-color: #374151; }
+  .app-shell.dark .schedule-card.selected {
+    border-color: #60a5fa;
+    background: rgba(37, 99, 235, 0.16);
+  }
   .schedule-card.drag-over {
     border-color: #2563eb;
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.16);
@@ -1293,6 +1397,22 @@ export const APP_STYLES = `
   }
   .schedule-card-main.draggable:active {
     cursor: grabbing;
+  }
+  .schedule-card-tool-row,
+  .schedule-bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .schedule-card-tool-row {
+    justify-content: space-between;
+  }
+  .schedule-bulk-actions {
+    justify-content: flex-end;
+  }
+  .schedule-bulk-actions .select {
+    min-width: 220px;
   }
   .schedule-start-date-editor {
     margin-top: 16px;
@@ -1632,6 +1752,144 @@ export const APP_STYLES = `
     flex-wrap: nowrap;
   }
   .settings-group label { font-weight: 700; }
+  .user-account-editor {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    gap: 12px;
+    align-items: end;
+    margin-top: 14px;
+  }
+  .user-account-editor label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .user-account-action {
+    align-self: end;
+  }
+  .user-account-create-trigger,
+  .user-account-create-panel {
+    margin-top: 14px;
+  }
+  .user-account-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .user-account-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #ffffff;
+  }
+  .user-account-row-editing {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .user-account-edit-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .user-account-edit-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .password-visibility-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .password-visibility-field .input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .password-visibility-toggle {
+    flex: 0 0 auto;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #111827;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .password-visibility-toggle:hover {
+    border-color: #94a3b8;
+    background: #f8fafc;
+  }
+  .user-account-row-actions {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+  }
+  .user-account-access-panel {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+  }
+  .app-shell.dark .user-account-row {
+    border-color: #374151;
+    background: #0f172a;
+  }
+  .app-shell.dark .user-account-access-panel {
+    border-color: #374151;
+    background: #111827;
+  }
+  .app-shell.dark .password-visibility-toggle {
+    border-color: #475569;
+    background: #1f2937;
+    color: #f8fafc;
+  }
+  .app-shell.dark .password-visibility-toggle:hover {
+    border-color: #64748b;
+    background: #334155;
+  }
+  .access-control-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 14px;
+  }
+  .access-role-panel {
+    padding: 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+  }
+  .access-role-panel h4 {
+    margin: 0 0 12px;
+    color: #111827;
+    font-size: 1rem;
+  }
+  .access-page-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+  }
+  .access-page-toggle {
+    min-height: 28px;
+    align-items: center;
+  }
+  .app-shell.dark .access-role-panel {
+    border-color: #374151;
+    background: #0f172a;
+  }
+  .app-shell.dark .access-role-panel h4 {
+    color: #f9fafb;
+  }
   .server-actions {
     margin-top: 18px;
   }
@@ -2086,8 +2344,10 @@ export const APP_STYLES = `
   .sidebar {
     position: sticky;
     top: 0;
-    min-height: 100vh;
-    min-height: 100dvh;
+    height: 100vh;
+    height: 100dvh;
+    align-self: start;
+    overflow-y: auto;
     padding: 18px 14px;
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     background: var(--surface-sidebar);
@@ -2101,6 +2361,7 @@ export const APP_STYLES = `
   }
 
   .sidebar-header {
+    position: relative;
     align-items: center;
     padding: 0;
     min-height: 48px;
@@ -2200,6 +2461,117 @@ export const APP_STYLES = `
     border-color: rgba(255, 255, 255, 0.12);
     background: rgba(255, 255, 255, 0.06);
     color: #e5edf8;
+  }
+
+  .sidebar-user-menu {
+    position: relative;
+    flex: 0 0 auto;
+  }
+
+  .sidebar-user-avatar {
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    background: #ffffff;
+    color: #111827;
+    cursor: pointer;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .sidebar-user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .sidebar-user-popover {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 30;
+    width: 220px;
+    overflow: hidden;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 8px;
+    background: #ffffff;
+    color: #111827;
+    box-shadow: 0 18px 38px rgba(15, 23, 42, 0.22);
+  }
+
+  .sidebar-user-popover-header {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .sidebar-user-popover-header strong,
+  .sidebar-user-popover-header span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar-user-popover-header span {
+    color: #64748b;
+    font-size: 0.82rem;
+  }
+
+  .sidebar-user-popover button {
+    width: 100%;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    border: 0;
+    border-bottom: 1px solid #eef2f7;
+    background: #ffffff;
+    color: #111827;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 800;
+    padding: 10px 12px;
+    text-align: left;
+  }
+
+  .sidebar-user-popover button:last-child {
+    border-bottom: 0;
+  }
+
+  .sidebar-user-popover button:hover {
+    background: #f8fafc;
+  }
+
+  .app-shell.dark .sidebar-user-popover {
+    border-color: #374151;
+    background: #111827;
+    color: #f9fafb;
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.4);
+  }
+
+  .app-shell.dark .sidebar-user-popover-header {
+    border-bottom-color: #374151;
+  }
+
+  .app-shell.dark .sidebar-user-popover-header span {
+    color: #9ca3af;
+  }
+
+  .app-shell.dark .sidebar-user-popover button {
+    border-bottom-color: #1f2937;
+    background: #111827;
+    color: #f9fafb;
+  }
+
+  .app-shell.dark .sidebar-user-popover button:hover {
+    background: #1f2937;
   }
 
   .nav-list {
@@ -2615,6 +2987,8 @@ export const APP_STYLES = `
     .sidebar {
       position: static;
       min-height: auto;
+      height: auto;
+      overflow: visible;
     }
 
     .app-shell.navigation-closed .sidebar {
@@ -2645,9 +3019,33 @@ export const APP_STYLES = `
   }
 
   @media (max-width: 760px) {
+    html,
+    body,
+    #root {
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
+    .app-shell,
+    .main-content {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: hidden;
+    }
+
+    .phone-experience .desktop-only-action {
+      display: none;
+    }
+
+    .main-content {
+      padding: 14px max(12px, env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    }
+
     .page-header {
+      gap: 12px;
       align-items: flex-start;
-      padding: 16px;
+      padding: 14px;
     }
 
     .page-header-icon {
@@ -2661,6 +3059,39 @@ export const APP_STYLES = `
 
     .nav-list {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .user-account-editor,
+    .user-account-edit-grid,
+    .user-account-row {
+      grid-template-columns: 1fr;
+    }
+
+    .user-account-row {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .user-account-action,
+    .user-account-row-actions {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .section-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .section-header .button-row,
+    .button-row {
+      width: 100%;
+    }
+
+    .button-row .button,
+    .section-header > .button,
+    .takeoff-save-actions .button {
+      width: 100%;
     }
 
     .landing-action-bar {
@@ -2677,11 +3108,46 @@ export const APP_STYLES = `
 
     .takeoff-editor-row {
       grid-template-columns: 1fr;
+      padding: 12px;
     }
 
     .takeoff-dimension-grid,
     .takeoff-calculated-cell {
       grid-column: auto;
+    }
+
+    .takeoff-table {
+      overflow-x: visible;
+    }
+
+    .takeoff-table-header {
+      display: none;
+    }
+
+    .takeoff-table-row {
+      min-width: 0;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      align-items: stretch;
+      padding: 12px;
+      margin-bottom: 10px;
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      background: var(--surface-panel-alt);
+    }
+
+    .takeoff-table-row:last-child {
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .takeoff-generated-editor {
+      padding: 0;
+      border-bottom: 0;
+    }
+
+    .scope-line-main,
+    .scope-line-secondary {
+      grid-template-columns: 1fr;
     }
   }
 `;

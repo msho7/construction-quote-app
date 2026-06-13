@@ -41,6 +41,7 @@ export const PAGE_OPTIONS = [
   { id: "dashboard", label: "Dashboard" },
   { id: "analysis", label: "Analysis" },
   { id: "quotes", label: "Quotes" },
+  { id: "scope", label: "Scope" },
   { id: "schedule", label: "Schedule" },
   { id: "takeoff", label: "Material Takeoff" },
   { id: "pricelist", label: "Price List" },
@@ -49,6 +50,47 @@ export const PAGE_OPTIONS = [
   { id: "server", label: "Server" },
   { id: "settings", label: "Settings" }
 ];
+
+export const ACCESS_ROLE_OPTIONS = [
+  { id: "administrator", label: "Administrator" },
+  { id: "manager", label: "Manager" },
+  { id: "contractor", label: "Contractor" }
+];
+
+export const ACCESS_PAGE_OPTIONS = [
+  { id: "dashboard", label: "Dashboard" },
+  { id: "analysis", label: "Analysis" },
+  { id: "quotes", label: "Quotes" },
+  { id: "scope", label: "Scope" },
+  { id: "schedule", label: "Schedule" },
+  { id: "takeoff", label: "Material Takeoff" },
+  { id: "pricelist", label: "Price List" },
+  { id: "contractor", label: "Contractors" },
+  { id: "customer", label: "Customers" },
+  { id: "server", label: "Server" },
+  { id: "settings", label: "Settings" }
+];
+
+export const DEFAULT_ROLE_ACCESS = {
+  administrator: ACCESS_PAGE_OPTIONS.map((page) => page.id),
+  manager: [
+    "dashboard",
+    "analysis",
+    "quotes",
+    "scope",
+    "schedule",
+    "takeoff",
+    "pricelist",
+    "contractor",
+    "customer",
+    "settings"
+  ],
+  contractor: [
+    "dashboard",
+    "scope",
+    "schedule"
+  ]
+};
 
 export const PROJECT_TEMPLATES = [
   {
