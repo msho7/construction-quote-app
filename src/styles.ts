@@ -933,6 +933,66 @@ export const APP_STYLES = `
   .app-shell.dark .scope-line-secondary label {
     color: #d1d5db;
   }
+  .scope-work-needed-field {
+    position: relative;
+  }
+  .scope-suggestion-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    overflow: hidden;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
+  }
+  .scope-suggestion-option {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border: none;
+    border-bottom: 1px solid #f1f5f9;
+    background: transparent;
+    color: #111827;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+  }
+  .scope-suggestion-option:last-child {
+    border-bottom: none;
+  }
+  .scope-suggestion-option:hover {
+    background: #eff6ff;
+  }
+  .scope-suggestion-option small {
+    flex: 0 0 auto;
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+  .app-shell.dark .scope-suggestion-menu {
+    border-color: #475569;
+    background: #111827;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+  }
+  .app-shell.dark .scope-suggestion-option {
+    border-bottom-color: #1f2937;
+    color: #f8fafc;
+  }
+  .app-shell.dark .scope-suggestion-option:hover {
+    background: #1e3a8a;
+  }
+  .app-shell.dark .scope-suggestion-option small {
+    color: #cbd5e1;
+  }
   .scope-photo-picker {
     position: relative;
     min-height: 42px;

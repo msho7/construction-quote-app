@@ -56,15 +56,23 @@ export default function QuoteItemRow({
     onUpdateItem(index, "scopePhotoCount", String(files.length));
     onUpdateItem(index, "scopePhotoNames", files.map((file) => file.name).join(", "));
   };
+  const normalizedScopeSearch = String(item.name || "").trim().toLowerCase();
+  const scopeSavedItemSuggestions = priceList
+    .filter((priceItem) => {
+      const itemName = String(priceItem.name || "");
+      if (!itemName.trim()) return false;
+      return !normalizedScopeSearch || itemName.toLowerCase().includes(normalizedScopeSearch);
+    })
+    .slice(0, 8);
+  const showScopeSuggestions = activeQuoteItemIndex === index && scopeSavedItemSuggestions.length > 0;
 
   if (isPhoneExperience) {
     return (
       <div className={`quote-row scope${isRoomLead ? " room-start" : ""}`}>
         <div className="scope-line-main">
-          <label>
+          <label className="scope-work-needed-field">
             Work Needed
             <Input
-              list={`scope-price-list-options-${index}`}
               placeholder="Type work needed or pick a suggestion"
               value={item.name}
               onFocus={() => onSetActiveQuoteItemIndex(index)}
@@ -79,13 +87,27 @@ export default function QuoteItemRow({
                 }
               }}
             />
-            <datalist id={`scope-price-list-options-${index}`}>
-              {priceList.map((priceItem, priceIndex) => (
-                <option key={`${priceItem.name}-${priceIndex}`} value={priceItem.name}>
-                  {priceItem.name}
-                </option>
-              ))}
-            </datalist>
+            {showScopeSuggestions ? (
+              <div className="scope-suggestion-menu" role="listbox">
+                {scopeSavedItemSuggestions.map((priceItem, priceIndex) => (
+                  <button
+                    key={`${priceItem.name}-${priceIndex}`}
+                    type="button"
+                    role="option"
+                    className="scope-suggestion-option"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      onUpdateItem(index, "name", priceItem.name);
+                      onSelectPriceItem(index, priceItem.name);
+                      onSetActiveQuoteItemIndex(null);
+                    }}
+                  >
+                    <span>{priceItem.name}</span>
+                    <small>{priceItem.unit || "unit"}</small>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </label>
 
           <label>
